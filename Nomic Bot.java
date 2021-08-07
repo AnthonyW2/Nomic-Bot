@@ -8,8 +8,11 @@
   v2.0.1
 **/
 
+//"This bot is cool" - Anonymous player of Nomic Season 2
 
 
+
+//Import the Java Discord API
 import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.Permission;
@@ -19,29 +22,61 @@ import net.dv8tion.jda.api.exceptions.PermissionException;
 import net.dv8tion.jda.api.exceptions.RateLimitedException;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 
+//Import authentication-related functionality
 import javax.security.auth.login.LoginException;
+
+//Import file read/write functionality
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.util.Scanner;
+
+//Import other utilities
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 
 
-public class TestBot extends ListenerAdapter {
+public class NomicBot extends ListenerAdapter {
   
   
-  String commandPrefix = "$";
+  static JDA jda;
+  
+  String cmdpref = "$";
+  
+  static ArrayList<String[]> players = new ArrayList<String[]>();
+  
+  static ArrayList<String> cards = new ArrayList<String>();
   
   
   public static void main(String[] args) {
     
     try {
       
-      JDA jda = JDABuilder.createDefault("").addEventListeners(new TestBot()).build();
-      jda.awaitReady();
-      System.out.println("Bot initialised successfully");
+      //Get the token from the "token" file
+      File tokenFile = new File("token");
+      Scanner tokenReader = new Scanner(tokenFile);
       
-      jda.getPresence().setActivity(Activity.playing("Polynomics"));
-      System.out.println("Set status\n");
+      if(tokenReader.hasNextLine()){
+        
+        String token = tokenReader.nextLine();
+        
+        //Initialise JDA
+        jda = JDABuilder.createDefault(token).addEventListeners(new NomicBot()).build();
+        jda.awaitReady();
+        System.out.println("Bot initialised successfully");
+        
+        //Initialise some stuff
+        init();
+        
+      }else{
+        
+        //Exit with an error message if the token cannot be retrieved
+        System.out.println("Failed to retrieve token from file");
+        System.exit(1);
+        
+      }
       
     } catch(LoginException e) {
       
@@ -51,7 +86,81 @@ public class TestBot extends ListenerAdapter {
       
       e.printStackTrace();
       
+    } catch(FileNotFoundException e) {
+      
+      //Exit with an error message if the token cannot be retrieved
+      System.out.println("Failed to retrieve token from file");
+      e.printStackTrace();
+      System.exit(1);
+      
     }
+    
+  }
+  
+  
+  
+  //Run on startup
+  public static void init(){
+    
+    //Set the status of the bot's account
+    jda.getPresence().setActivity(Activity.playing("Nomic"));
+    System.out.println("Successfully set status");
+    
+    
+    try {
+      
+      //Get the list of players in the current turn order
+      File playersFile = new File("players");
+      Scanner playersReader = new Scanner(playersFile);
+      
+      while(playersReader.hasNextLine()){
+        
+        String player = playersReader.nextLine();
+        
+        if(player.length() > 1){
+          players.add(player.split(" "));
+        }
+        
+      }
+      
+    } catch(FileNotFoundException e) {
+      
+      //Exit with an error message if the list of players cannot be retrieved
+      System.out.println("Failed to retrieve list of players from file");
+      e.printStackTrace();
+      System.exit(1);
+      
+    }
+    
+    System.out.println("Successfully got list of players");
+    
+    
+    try {
+      
+      //Get the list of players in the current turn order
+      File cardsFile = new File("cards");
+      Scanner cardsReader = new Scanner(cardsFile);
+      
+      while(cardsReader.hasNextLine()){
+        
+        String card = cardsReader.nextLine();
+        
+        if(card.length() > 1){
+          cards.add(card);
+        }
+        
+      }
+      
+    } catch(FileNotFoundException e) {
+      
+      //Exit with an error message if the list of players cannot be retrieved
+      System.out.println("Failed to retrieve list of cards from file");
+      e.printStackTrace();
+      System.exit(1);
+      
+    }
+    
+    System.out.println("Successfully got list of cards");
     
   }
   
@@ -60,11 +169,6 @@ public class TestBot extends ListenerAdapter {
   //Define the functionality for when a message is received by the bot
   @Override
   public void onMessageReceived(MessageReceivedEvent event) {
-    
-    JDA jda = event.getJDA();
-    
-    //Store the amount of Discord events received since the last reconnect
-    long responseNumber = event.getResponseNumber();
     
     //User that sent the message
     User author = event.getAuthor();
@@ -135,6 +239,7 @@ public class TestBot extends ListenerAdapter {
   
   
   
+  //Execute any commands associated with a received message
   public void handleMessage(MessageReceivedEvent event) {
     
     JDA jda = event.getJDA();
@@ -142,25 +247,29 @@ public class TestBot extends ListenerAdapter {
     MessageChannel channel = event.getChannel();
     String messageContents = event.getMessage().getContentDisplay();
     
-    if(messageContents.equals(this.commandPrefix + "ping")) {
+    if(messageContents.equals(this.cmdpref + "ping")) {
       
-      channel.sendMessage("pong!").queue();
+      channel.sendMessage("pong").queue();
       
-    } else if(messageContents.equals(this.commandPrefix + "help")) {
+    } else if(messageContents.equals(this.cmdpref + "help")) {
       
       this.helpCommand(event);
       
-    } else if(messageContents.length() > (3 + this.commandPrefix.length()) && messageContents.substring(0,4 + this.commandPrefix.length()).equals(this.commandPrefix + "roll")) {
+    } else if(messageContents.equals(this.cmdpref + "players") || messageContents.equals(this.cmdpref + "listplayers")) {
+      
+      this.playersCommand(event);
+      
+    } else if(messageContents.length() > (3 + this.cmdpref.length()) && messageContents.substring(0,4 + this.cmdpref.length()).equals(this.cmdpref + "roll")) {
       
       this.rollCommand(event);
       
-    } else if(messageContents.equals(this.commandPrefix + "colour")) {
+    } else if(messageContents.equals(this.cmdpref + "card") || messageContents.equals(this.cmdpref + "randomcard")) {
       
-      channel.sendMessage( event.getMember().getColor().toString() ).queue();
+      this.cardCommand(event);
       
-    } else if(messageContents.length() > (6 + this.commandPrefix.length()) && messageContents.substring(0,7 + this.commandPrefix.length()).equals(this.commandPrefix + "replace")) {
+    } else if(messageContents.equals(this.cmdpref + "rock")) {
       
-      this.replaceCommand(event);
+      this.rockCommand(event);
       
     }
     
@@ -168,20 +277,47 @@ public class TestBot extends ListenerAdapter {
   
   
   
+  //Show a basic help guide for the bot
   public void helpCommand(MessageReceivedEvent event) {
     
-    event.getChannel().sendMessage("Just ask <@384443337341534212>").queue();
+    String help = "__Guide to using Nomic Bot:__";
+    help += "\nCurrent command prefix is " + this.cmdpref;
+    help += "\n\nFor the current turn order, use the `"+this.cmdpref+"players` command";
+    help += "\nTo roll a die of size n, use the `"+this.cmdpref+"roll `*`n`* command";
+    help += "\nTo throw a rock, use the `"+this.cmdpref+"rock` command";
+    help += "\nTo get a random card, use the `"+this.cmdpref+"card` command";
+    help += "\nAsk <@384443337341534212> for details";
+    
+    event.getChannel().sendMessage(help).queue();
     
   }
   
   
   
+  //List the players in the current turn order
+  public void playersCommand(MessageReceivedEvent event) {
+    
+    String response = "**Turn order:**";
+    
+    for(int p = 0;p < players.size();p ++){
+      
+      response += "\n" + (p+1) + " - " + players.get(p)[1];
+      
+    }
+    
+    event.getChannel().sendMessage(response).queue();
+    
+  }
+  
+  
+  
+  //Roll a die of a given size
   public void rollCommand(MessageReceivedEvent event) {
     
     //Use a D6 by default
     int die = 6;
     
-    if(event.getMessage().getContentDisplay().length() > (5 + this.commandPrefix.length())){
+    if(event.getMessage().getContentDisplay().length() > (5 + this.cmdpref.length())){
       
       String params = event.getMessage().getContentDisplay().substring(6);
       
@@ -208,7 +344,7 @@ public class TestBot extends ListenerAdapter {
       //Generate random integer
       int roll = ThreadLocalRandom.current().nextInt(die) + 1;
       
-      //Print message
+      //Send the message
       event.getChannel().sendMessage("Rolling **D" + die + "**:\n" + roll).queue();
       
     }
@@ -217,22 +353,32 @@ public class TestBot extends ListenerAdapter {
   
   
   
-  public void replaceCommand(MessageReceivedEvent event) {
+  //Generate a random card
+  public void cardCommand(MessageReceivedEvent event) {
     
-    User author = event.getAuthor();
-    Message message = event.getMessage();
-    MessageChannel channel = event.getChannel();
+    int cardNum = ThreadLocalRandom.current().nextInt( cards.size() );
     
-    //Store original message
-    String messageContents = message.getContentDisplay();
+    event.getChannel().sendMessage("Your card is a **" + cards.get(cardNum) + "**").queue();
     
-    //Remove original message
-    message.delete().queue();
+  }
+  
+  
+  
+  //Throw a rock some distance
+  public void rockCommand(MessageReceivedEvent event) {
     
-    //Send message contents
-    if(messageContents.length() > (7 + this.commandPrefix.length())){
-      channel.sendMessage("**<" + author.getName() + ">** " + messageContents.substring(9)).queue();
+    //Guaranteed to travel at least 1 metre
+    int distance = 1;
+    
+    //25% chance of stopping
+    while(ThreadLocalRandom.current().nextInt(4) > 0){
+      
+      //Rock travelled another metre
+      distance ++;
+      
     }
+    
+    event.getChannel().sendMessage("Your rock travelled **" + distance + "m**").queue();
     
   }
   
