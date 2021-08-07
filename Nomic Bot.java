@@ -5,7 +5,7 @@
   
   Nomic Discord bot
   
-  v2.0.1
+  v2.0.2
 **/
 
 //"This bot is cool" - Anonymous player of Nomic Season 2
