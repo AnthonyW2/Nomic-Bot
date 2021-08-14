@@ -1,4 +1,4 @@
 #!/bin/bash
 
-java -classpath ".:lib/JDA-4.3.0_305.jar:" "Nomic Bot.java"
+java -classpath ".:lib/JDA-4.3.0_305.jar:" "NomicBot.java"
 

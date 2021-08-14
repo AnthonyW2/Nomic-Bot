@@ -52,8 +52,7 @@ public class NomicBot extends ListenerAdapter {
   
   static Guild nomicGuild;
   
-  //Each entry contains the user ID, the player's name and the amount of votes they have
-  //static ArrayList<String[]> players = new ArrayList<String[]>();
+  //Store a list of all active players
   static ArrayList<Player> players = new ArrayList<Player>();
   
   static ArrayList<String> cards = new ArrayList<String>();
@@ -116,6 +115,7 @@ public class NomicBot extends ListenerAdapter {
     
     //Set the status of the bot's account
     jda.getPresence().setActivity(Activity.playing("Nomic"));
+    ///jda.getPresence().setActivity(Activity.playing("Development"));
     System.out.println("Successfully set status");
     
     
@@ -131,7 +131,7 @@ public class NomicBot extends ListenerAdapter {
         
         if(playerStr.length() > 1){
           //Create a new Player object and add it to the players array
-          players.add(new Player(playerStr));
+          players.add(new Player(playerStr, p+1));
           
           totalVotes += players.get(p).votes;
         }
@@ -300,6 +300,15 @@ public class NomicBot extends ListenerAdapter {
       
       this.confirmMajorityCommand(event);
       
+    } else if(messageContents.length() > (11 + this.cmdpref.length()) && messageContents.substring(0,12 + this.cmdpref.length()).equals(this.cmdpref + "proposaltype")) {
+      
+      /// For debugging purposes
+      String messageID = messageContents.substring(13 + this.cmdpref.length());
+      TextChannel proposalsChannel = nomicGuild.getTextChannelById(proposalsChannelID);
+      Message proposalMessage = proposalsChannel.retrieveMessageById(messageID).complete();
+      
+      channel.sendMessage(getProposalType(proposalMessage.getContentDisplay())).queue();
+      
     }
     
   }
@@ -418,10 +427,6 @@ public class NomicBot extends ListenerAdapter {
   //Check if any active rules have reached majority
   public void getVotesCommand(MessageReceivedEvent event) {
     
-    ///Still need to account for the votes of the user who made the proposal
-    ///Need to detect double-votes
-    ///Once double-vote detection works, list the users who still need to vote
-    
     //Check if the message is long enough
     if(event.getMessage().getContentDisplay().length() > (6 + this.cmdpref.length())) {
       
@@ -434,15 +439,68 @@ public class NomicBot extends ListenerAdapter {
       //The proposal message
       Message proposalMessage = proposalsChannel.retrieveMessageById(messageID).complete();
       
-      int[] votes = getVotes(proposalMessage);
+      //The Discord profile of the player who made the proposal
+      Player proposalAuthor = getMatchingPlayer(proposalMessage.getAuthor());
       
+      //Store the amount of votes which the author of the proposal has
+      int authorVotes = proposalAuthor.votes;
+      
+      //Whether or not each user has voted
+      boolean[] usersVoted = new boolean[players.size()];
+      
+      //A list of any illegal or double votes, populated by the getVotes() function
+      ArrayList<User> illegalVotes = new ArrayList<User>();
+      
+      
+      //Try to work out the type of proposal, judging by the contents of the message
+      String proposalType = getProposalType(proposalMessage.getContentDisplay());
+      
+      //Annouce that the bot is getting the votes for the author's proposal
+      event.getChannel().sendMessage("__Getting votes for " + proposalAuthor.name + "'s " + (proposalType == "edit" ? "rule edit" : proposalType + " proposal") + "__").queue();
+      
+      
+      //Get the amounts of votes on the proposal
+      int[] votes = getVotes(proposalMessage, usersVoted, proposalAuthor, illegalVotes);
+      
+      //Report back the amounts of votes the proposal has
       event.getChannel().sendMessage(
         "Upvotes: "    + votes[0] +
         "\nDownvotes: "  + votes[1] +
         "\nLeftvotes: "  + votes[2] +
         "\nRightvotes: " + votes[3] +
-        "\n" + (votes[0] + votes[1] + votes[2] + votes[3]) + " out of " + this.totalVotes + " votes cast"
+        "\n" + (votes[0] + votes[1] + votes[2] + votes[3]) + " out of " + (this.totalVotes - authorVotes) + " votes cast"
       ).queue();
+      
+      //Detect majority
+      String[] majorityType = detectMajorityFromVotes(votes, this.totalVotes - authorVotes);
+      
+      //Report which vote has majority (if applicable)
+      if(majorityType[1].equals("Majority")) {
+        
+        event.getChannel().sendMessage("**" + majorityType[0] + "vote majority!**").queue();
+        
+      } else if(majorityType[1].equals("Tie")) {
+        
+        event.getChannel().sendMessage("**" + majorityType[0] + "vote tie!**").queue();
+        
+      }
+      
+      //Send a list of users who still need to vote
+      for(int p = 0;p < usersVoted.length;p ++) {
+        
+        if(!usersVoted[p] && players.get(p) != proposalAuthor) {
+          
+          event.getChannel().sendMessage(players.get(p).name + " still needs to vote").queue();
+          
+        }
+        
+      }
+      
+      //Warn about any illegal or double votes made on the proposal
+      for(int v = 0;v < illegalVotes.size();v ++) {
+        event.getChannel().sendMessage(illegalVotes.get(v).getName() + " has illegally voted!").queue();
+      }
+      
       
     } else {
       
@@ -454,13 +512,10 @@ public class NomicBot extends ListenerAdapter {
   
   //Returns the amount of votes as an array of integers
   //0 = upvotes, 1 = downvotes, 2 = leftvotes, 3 = rightvotes
-  public int[] getVotes(Message proposalMessage) {
+  public int[] getVotes(Message proposalMessage, boolean[] usersVoted, Player author, ArrayList<User> illegalVotes) {
     
     //List of unique reactions to the proposal message
     List<MessageReaction> reactions = proposalMessage.getReactions();
-    
-    //Whether or not each user has voted
-    ///boolean[this.players.size()] userVoted;
     
     //Keep track of the 3 types of votes
     int upvotes    = 0;
@@ -470,21 +525,25 @@ public class NomicBot extends ListenerAdapter {
     
     for(int r = 0;r < reactions.size();r ++){
       
-      if(reactions.get(r).toString().contains("thumbsup") || reactions.get(r).toString().contains("1f44d")){
+      if(reactions.get(r).toString().contains("thumbsup") || reactions.get(r).toString().contains("1f44d")) {
         
-        upvotes += getVoteCount(reactions.get(r));
+        //Up-votes
+        upvotes += getVoteCount(reactions.get(r), usersVoted, author, illegalVotes);
         
-      }else if(reactions.get(r).toString().contains("thumbsdown") || reactions.get(r).toString().contains("1f44e")){
+      } else if (reactions.get(r).toString().contains("thumbsdown") || reactions.get(r).toString().contains("1f44e")) {
         
-        downvotes += getVoteCount(reactions.get(r));
+        //Down-votes
+        downvotes += getVoteCount(reactions.get(r), usersVoted, author, illegalVotes);
         
-      }else if(reactions.get(r).toString().contains("thumbsleft")){
+      } else if (reactions.get(r).toString().contains("thumbsleft")){
         
-        leftvotes += getVoteCount(reactions.get(r));
+        //Left-votes
+        leftvotes += getVoteCount(reactions.get(r), usersVoted, author, illegalVotes);
         
-      }else if(reactions.get(r).toString().contains("thumbsright")){
+      } else if (reactions.get(r).toString().contains("thumbsright")){
         
-        rightvotes += getVoteCount(reactions.get(r));
+        //Right-votes
+        rightvotes += getVoteCount(reactions.get(r), usersVoted, author, illegalVotes);
         
       }
       
@@ -497,9 +556,7 @@ public class NomicBot extends ListenerAdapter {
   }
   
   //Get the amount of votes in a MessageReaction object
-  public int getVoteCount(MessageReaction reaction) {
-    
-    ///Still need to implement a way to detect double-votes
+  public int getVoteCount(MessageReaction reaction, boolean[] usersVoted, Player author, ArrayList<User> illegalVotes) {
     
     int votes = 0;
     
@@ -509,18 +566,31 @@ public class NomicBot extends ListenerAdapter {
     //Loop through the list of users who reacted
     for(User user : users) {
       
-      //Loop through all players
-      for(int p = 0;p < players.size();p ++) {
+      Player matchingPlayer = getMatchingPlayer(user);
+      
+      //Detect illegal votes (made by non-players or the proposal author)
+      if(matchingPlayer == null || matchingPlayer == author) {
         
-        //Loop through the player's possible user IDs
-        for(int uid = 0;uid < players.get(p).userIDs.length;uid ++) {
+        illegalVotes.add(user);
+        
+        System.out.println("Illegal vote!");
+        
+      } else {
+        
+        //Detect double-votes
+        if(usersVoted[matchingPlayer.turnPosition-1]) {
           
-          //Test if the player matches the reaction user
-          if(user.getId().equals(players.get(p).userIDs[uid])){
-            
-            votes += players.get(p).votes;
-            
-          }
+          illegalVotes.add(user);
+          
+          System.out.println("Double vote!");
+          
+        } else {
+          
+          //Increment the vote count
+          votes += matchingPlayer.votes;
+          
+          //Keep track of which players have voted
+          usersVoted[matchingPlayer.turnPosition-1] = true;
           
         }
         
@@ -529,6 +599,105 @@ public class NomicBot extends ListenerAdapter {
     }
     
     return votes;
+    
+  }
+  
+  
+  
+  //Report whether a set of votes makes majority
+  public String[] detectMajorityFromVotes(int[] votes, int totalPossibleVotes) {
+    
+    //int[] votes -> 0 = upvotes, 1 = downvotes, 2 = leftvotes, 3 = rightvotes
+    
+    //Possible values:
+    // 0 = "Up", "Down", "Left", "Right", ""
+    // 1 = "Majority", "Tie", "Leading", "None"
+    String[] output = {"Vote", "Type"};
+    
+    String[] voteTypeText = {"Up", "Down", "Left", "Right"};
+    
+    
+    //Get the amount of votes that have been cast
+    int totalVotesCast = 0;
+    for(int v = 0;v < 4;v ++) {
+      totalVotesCast += votes[v];
+    }
+    
+    
+    //If there are no votes cast, return the relevant response
+    if(totalVotesCast == 0) {
+      
+      output[0] = "";
+      output[1] = "None";
+      
+      return output;
+      
+    }
+    
+    
+    //Store the amount of votes that are yet to be cast
+    int remainingVotes = totalPossibleVotes - totalVotesCast;
+    
+    
+    //Identify the highest amount of votes present
+    int highest = 0;
+    for(int v = 0;v < 4;v ++) {
+      
+      if(votes[v] > highest) {
+        highest = votes[v];
+      }
+      
+    }
+    
+    //Create a list of all votes that are at the current highest amount
+    ArrayList<Integer> highestVotes = new ArrayList<Integer>();
+    for(int v = 0;v < 4;v ++) {
+      
+      if(votes[v] == highest) {
+        highestVotes.add(v);
+      }
+      
+    }
+    
+    //If only one vote type is leading
+    if(highestVotes.size() == 1) {
+      
+      //Test if the vote type has an unbeatable lead
+      boolean majority = true;
+      for(int v = 0;v < 4;v ++) {
+        
+        if(votes[v] + remainingVotes >= votes[highestVotes.get(0)] && v != highestVotes.get(0)) {
+          majority = false;
+        }
+        
+      }
+      
+      //Return the result
+      output[0] = voteTypeText[highestVotes.get(0)];
+      output[1] = (majority ? "Majority" : "Leading");
+      
+      return output;
+      
+    } else {
+      
+      //Create a list of vote types that are tied
+      output[0] = "";
+      for(int v = 0;v < highestVotes.size();v ++) {
+        
+        output[0] += voteTypeText[highestVotes.get(v)] + (v < highestVotes.size()-1 ? "," : "");
+        
+      }
+      
+      //Return a tie if there are no remaining votes, or just "Leading" if the tie could still be broken
+      if(remainingVotes == 0) {
+        output[1] = "Tie";
+      } else {
+        output[1] = "Leading";
+      }
+      
+      return output;
+      
+    }
     
   }
   
@@ -546,11 +715,31 @@ public class NomicBot extends ListenerAdapter {
       //The TextChannel object representing the #proposals channel
       TextChannel proposalsChannel = nomicGuild.getTextChannelById(proposalsChannelID);
       
+      //The proposal message
+      Message proposalMessage = proposalsChannel.retrieveMessageById(messageID).complete();
       
-      ///Detect majority here
+      //The Discord profile of the player who made the proposal
+      Player proposalAuthor = getMatchingPlayer(proposalMessage.getAuthor());
       
-      event.getChannel().sendMessage("Unimplemented").queue();
+      //Store the amount of votes which the author of the proposal has
+      int authorVotes = proposalAuthor.votes;
       
+      //Whether or not each user has voted
+      boolean[] usersVoted = new boolean[players.size()];
+      
+      //A list of any illegal or double votes, populated by the getVotes() function
+      ArrayList<User> illegalVotes = new ArrayList<User>();
+      
+      
+      //Get the amounts of votes on the proposal
+      int[] votes = getVotes(proposalMessage, usersVoted, proposalAuthor, illegalVotes);
+      
+      
+      //Detect majority
+      String[] majorityType = detectMajorityFromVotes(votes, this.totalVotes - authorVotes);
+      
+      
+      event.getChannel().sendMessage(majorityType[0] + "vote " + majorityType[1]).queue();
       
     } else {
       
@@ -562,14 +751,76 @@ public class NomicBot extends ListenerAdapter {
   
   
   
+  //Try to work out the type of proposal (rule, edit, item, thematic, etc) from the text in the message
+  public String getProposalType(String proposalText) {
+    
+    String firstLine = proposalText.split("\n")[0].toLowerCase();
+    
+    String relevantString = firstLine;
+    
+    //Extract the part of the text which should describe the type of proposal
+    if(firstLine.contains(":")) {
+      relevantString = firstLine.split(":")[0];
+    } else {
+      relevantString = firstLine.substring(0, Math.min(48, firstLine.length()));
+    }
+    
+    //Attempt to match the type of proposal by search for matching substrings
+    if(relevantString.contains("archive")) {
+      
+      return "archived";
+      
+    } else if(relevantString.contains("theme") || relevantString.contains("thematic")) {
+      
+      return "thematic";
+      
+    } else if(relevantString.contains("item")) {
+      
+      return "item";
+      
+    } else if(relevantString.contains("event")) {
+      
+      return "event";
+      
+    } else if(relevantString.contains("visual")) {
+      
+      return "visual";
+      
+    } else if(relevantString.contains("proposal") && relevantString.contains("edit")) {
+      
+      return "modified";
+      
+    } else if(relevantString.contains("edit")) {
+      
+      return "edit";
+      
+    } else if(relevantString.contains("mayor") || relevantString.contains("election")) {
+      
+      return "election";
+      
+    } else if(relevantString.contains("clarif")) {
+      
+      return "clarification";
+      
+    }
+    
+    return "rule";
+    
+  }
+  
+  
+  
+  //Object type to store a player's attributes
   public static class Player {
     
+    //Attributes should be self-explanatory
     String name;
     String[] userIDs;
     int votes = 1;
     String altName;
+    int turnPosition;
     
-    public Player(String playerStr) {
+    public Player(String playerStr, int turnPos) {
       
       String[] splitStr = playerStr.split("	");
       
@@ -577,17 +828,19 @@ public class NomicBot extends ListenerAdapter {
       this.userIDs = splitStr[0].split(",");
       this.votes = Integer.parseInt(splitStr[2]);
       this.altName = splitStr[3];
+      this.turnPosition = turnPos;
       
     }
     
     
     
+    //Method to convert a Player object into a string for debugging
     public String toString() {
       
       String output = "";
       
       output += "userIDs = [";
-      for(int id = 0;id < this.userIDs.length;id ++){
+      for(int id = 0;id < this.userIDs.length;id ++) {
         output += this.userIDs[id] + ",";
       }
       
@@ -603,6 +856,30 @@ public class NomicBot extends ListenerAdapter {
     
   }
   
+  
+  
+  public Player getMatchingPlayer(User discordUser) {
+    
+    String userID = discordUser.getId();
+    
+    //Loop through all players
+    for(int p = 0;p < players.size();p ++) {
+      
+      //Loop through the player's possible user IDs
+      for(int uid = 0;uid < players.get(p).userIDs.length;uid ++) {
+        
+        //Check if the player's user ID matches the ID of the given user
+        if(players.get(p).userIDs[uid].equals(userID)){
+          return players.get(p);
+        }
+        
+      }
+      
+    }
+    
+    return null;
+    
+  }
   
   
 }
