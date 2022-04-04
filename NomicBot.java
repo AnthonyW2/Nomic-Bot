@@ -1,11 +1,11 @@
 /**
   Anthony Wilson
   
-  2021-8-7
+  2021-8-7 - 2022-4-4
   
   Nomic Discord bot
   
-  v2.2
+  v3.0.1
 **/
 
 //Relevant links:
@@ -14,17 +14,13 @@
 /// https://stackoverflow.com/questions/63411268/discord-js-ping-command
 /// https://ci.dv8tion.net/job/JDA/javadoc/net/dv8tion/jda/api/EmbedBuilder.html
 
-//What was left to do:
-/// Implement up+left > down -> leftvote majority detection
-/// Automate Wikipedia races
-/// Add correct vote detection for all rule types
-/// Store more details in files
+//To do:
+/// Website integration
 /// Remember which proposals have reached majority
 /// Better votes command which lists all votes for all current active proposals
 /// Better players command with more info
 /// Automatically send the majority message when the bot turns on if majority was reached
 /// Better error handling
-/// Add a jop command
 
 
 
@@ -77,11 +73,11 @@ public class NomicBot extends ListenerAdapter {
   static boolean enableReactionListeners = true;
   
   static String nomicGuildID = "701269326518419547";
-  String generalChannelID    = "827413038239318066";
-  String proposalsChannelID  = "827413063287439392";
-  String discussionChannelID = "827413100927647765";
-  String joppingChannelID    = "895546731415076894";
-  String botChannelID        = "827413269052391454";
+  String generalChannelID    = "960036813949501481";
+  String proposalsChannelID  = "960036851022979092";
+  String discussionChannelID = "960037087405555732";
+  String recordsChannelID    = "960037149045047346";
+  String botChannelID        = "960037347334979585";
   
   static Guild nomicGuild;
   
@@ -150,9 +146,8 @@ public class NomicBot extends ListenerAdapter {
   public static void init(){
     
     //Set the status of the bot's account
-    jda.getPresence().setActivity(Activity.playing("Nomic"));
-    ///jda.getPresence().setActivity(Activity.playing("The Final Countdown"));
-    ///jda.getPresence().setActivity(Activity.playing("Development"));
+    ///jda.getPresence().setActivity(Activity.playing("Nomic"));
+    jda.getPresence().setActivity(Activity.playing("Season 3 Development"));
     ///jda.getPresence().setActivity(Activity.watching("your votes"));
     ///jda.getPresence().setActivity(Activity.watching("your grammar"));
     ///jda.getPresence().setActivity(Activity.watching("you"));
@@ -298,7 +293,7 @@ public class NomicBot extends ListenerAdapter {
     if(channel.getId().equals(proposalsChannelID)) {
       
       System.out.println("Vote cast on message with ID " + messageID);
-      
+      /**
       TextChannel proposalsChannel = nomicGuild.getTextChannelById(proposalsChannelID);
       Message proposalMessage = proposalsChannel.retrieveMessageById(messageID).complete();
       User proposalAuthorAccount = proposalMessage.getAuthor();
@@ -338,7 +333,7 @@ public class NomicBot extends ListenerAdapter {
         ///System.out.println(proposalAuthor.name + "'s " + (proposalType == "edit" ? "rule edit" : proposalType + " proposal") + " has tied between **" + majorityType[0] + "**");
         
       }
-      
+      */
     }
     
   }
@@ -366,6 +361,10 @@ public class NomicBot extends ListenerAdapter {
       
       this.playersCommand(event);
       
+    } else if(messageContents.length() > (4 + this.cmdpref.length()) && messageContents.substring(0,5 + this.cmdpref.length()).equals(this.cmdpref + "votes")) {
+      
+      this.getVotesCommand(event);
+      
     } else if(messageContents.length() > (3 + this.cmdpref.length()) && messageContents.substring(0,4 + this.cmdpref.length()).equals(this.cmdpref + "roll")) {
       
       this.rollCommand(event);
@@ -374,67 +373,19 @@ public class NomicBot extends ListenerAdapter {
       
       this.cardCommand(event);
       
-    } else if(messageContents.equals(this.cmdpref + "rock")) {
-      
-      this.rockCommand(event);
-      
-    } else if(messageContents.length() > (4 + this.cmdpref.length()) && messageContents.substring(0,5 + this.cmdpref.length()).equals(this.cmdpref + "votes")) {
-      
-      this.getVotesCommand(event);
-      
     } else if(messageContents.equals(this.cmdpref + "stats")) {
       
-      this.statsCommand(event);
+      ///this.statsCommand(event);
       
     } else if(messageContents.length() > (7 + this.cmdpref.length()) && messageContents.substring(0,8 + this.cmdpref.length()).equals(this.cmdpref + "majority")) {
       
       this.confirmMajorityCommand(event);
       
-    } else if(messageContents.length() > (7 + this.cmdpref.length()) && messageContents.substring(0,8 + this.cmdpref.length()).equals(this.cmdpref + "wikirace")) {
-      
-      this.wikiRaceCommand(event);
-      
-    } else if(messageContents.equals(this.cmdpref + "rice")) {
-      
-      this.riceCommand(event);
-      
-    } else if(messageContents.equals(this.cmdpref + "soybeans") || messageContents.equals(this.cmdpref + "beans")) {
-      
-      this.soybeansCommand(event);
-      
-    } else if(messageContents.length() > (6 + this.cmdpref.length()) && messageContents.substring(0,7 + this.cmdpref.length()).equals(this.cmdpref + "berries")) {
-      
-      this.berriesCommand(event);
-      
-    } else if(messageContents.equals(this.cmdpref + "mushrooms")) {
-      
-      this.mushroomsCommand(event);
-      
-    } else if(messageContents.equals(this.cmdpref + "peppers")) {
-      
-      this.peppersCommand(event);
-      
-    } else if(messageContents.equals(this.cmdpref + "twistturns")) {
-      
-      this.twistturnsCommand(event);
-      
-    } else if(messageContents.equals(this.cmdpref + "election")) {
-      
-      this.electionCommand(event);
-      
-    } else if(messageContents.toLowerCase().contains("jop")) {
-      
-      this.automaticJopDetection(event);
-      
-    } else if(messageContents.equals(this.cmdpref + "scold")) {
-      
-      this.scoldCommand(event);
-      
     }
     
     
     
-    // Shhhhh
+    // ?
     if(messageContents.toLowerCase().contains("majoirty")) {
       message.addReaction("U+1f956").queue();
     }
@@ -452,15 +403,7 @@ public class NomicBot extends ListenerAdapter {
     helpMessageBuilder.addField("Turn Order", "For the current turn order and vote amounts, use the `"+this.cmdpref+"players` command.", false);
     helpMessageBuilder.addField("Votes", "To get the votes on a rule, use the `"+this.cmdpref+"votes <message ID>` command.\nNomic Bot will automatically announce when a proposal reaches majority.", false);
     helpMessageBuilder.addField("Dice Rolling", "To roll a die of size `<n>`, use the `"+this.cmdpref+"roll <n>` command.", false);
-    helpMessageBuilder.addField("Rock Skipping", "To throw a rock, use the `"+this.cmdpref+"rock` command.", false);
     helpMessageBuilder.addField("Random Card", "To get a random card, use the `"+this.cmdpref+"card` command.", false);
-    helpMessageBuilder.addField(
-      "Crops",
-      "Use the `"+this.cmdpref+"rice` command to harvest rice.\nUse the `"+this.cmdpref+"soybeans` command to harvest soybeans.\nUse the `"+this.cmdpref+"berries <n>` command to harvest thorned berries, where `<n>` is the amount of food items in your inventory.\nUse the `"+this.cmdpref+"mushrooms` command to harvest biofluorescent mushrooms.\nUse the `"+this.cmdpref+"peppers` command to harvest blue-peppers.",
-      false
-    );
-    helpMessageBuilder.addField("Elections", "To choose 3 random mayor candidates, use the `"+this.cmdpref+"election` command.", false);
-    helpMessageBuilder.addField("Turn Twister", "To randomise the turn order, use the `"+this.cmdpref+"twistturns` command.", false);
     helpMessageBuilder.setFooter("Ask Anthony for more details");
     
     event.getChannel().sendMessageEmbeds(helpMessageBuilder.build()).queue();
@@ -550,315 +493,6 @@ public class NomicBot extends ListenerAdapter {
     }
     
     event.getChannel().sendMessage("Your card is " + functionWord + " **" + cards.get(cardNum) + "**").queue();
-    
-  }
-  
-  
-  
-  //Harvest rice
-  public void riceCommand(MessageReceivedEvent event) {
-    
-    int roll = ThreadLocalRandom.current().nextInt(6);
-    
-    if(roll == 0) {
-      
-      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got no rice").queue();
-      
-    } else if(roll == 5){
-      
-      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got **3** rice - please give 1 rice to another player").queue();
-      
-    } else {
-      
-      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got **1** rice").queue();
-      
-    }
-    
-  }
-  
-  
-  
-  //Harvest soybeans
-  public void soybeansCommand(MessageReceivedEvent event) {
-    
-    int roll = ThreadLocalRandom.current().nextInt(4);
-    
-    if(roll == 0) {
-      
-      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got no soybeans").queue();
-      
-    } else {
-      
-      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got **1** soybean").queue();
-      
-    }
-    
-  }
-  
-  
-  
-  //Forage for Thorned Berries
-  public void berriesCommand(MessageReceivedEvent event) {
-    
-    //Use a D7+n
-    int die = 7;
-    
-    //Check if the message is long enough
-    if(event.getMessage().getContentDisplay().length() > (8 + this.cmdpref.length())) {
-      
-      //Get the value of n
-      try {
-        
-        die += Integer.parseInt(event.getMessage().getContentDisplay().substring(8 + this.cmdpref.length()));
-        
-      } catch(NumberFormatException e) {
-        
-        //If the user supplies a non-integer parameter for the die size, send a warning message
-        event.getChannel().sendMessage("Invalid value for n").queue();
-        
-      }
-      
-    }
-    
-    if(die >= 7){
-      
-      //Generate random integer
-      int roll = ThreadLocalRandom.current().nextInt(die) + 1;
-      
-      String message;
-      
-      //Send a message corresponding to the roll
-      switch(roll) {
-        case 1:
-          message = "(Rolled 1)\nYou take **3** damage";
-          break;
-        case 2:
-          message = "(Rolled 2)\nYou take **2** damage";
-          break;
-        case 3:
-        case 4:
-          message = "(Rolled " + roll + ")\nYou get **1** thorned berry and take **3** damage";
-          break;
-        case 5:
-        case 6:
-          message = "(Rolled " + roll + ")\nYou get **1** thorned berry and take **2** damage";
-          break;
-        case 7:
-          message = "(Rolled 7)\nYou get **2** thorned berries and take **3** damage";
-          break;
-        default:
-          message = "(Rolled " + roll + ")\nYou get **1** thorned berry and take **3** damage";
-      }
-      
-      event.getChannel().sendMessage(message).queue();
-      
-    }
-    
-  }
-  
-  
-  
-  //Forage for Biofluorescent Mushrooms
-  public void mushroomsCommand(MessageReceivedEvent event) {
-    
-    int roll = ThreadLocalRandom.current().nextInt(10);
-    
-    if(roll == 9) {
-      
-      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got **2** Biofluorescent Mushrooms").queue();
-      
-    } else if(roll < 5) {
-      
-      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got no Biofluorescent Mushrooms").queue();
-      
-    } else {
-      
-      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got **1** Biofluorescent Mushroom").queue();
-      
-    }
-    
-  }
-  
-  
-  
-  //Forage for Blue-Peppers
-  public void peppersCommand(MessageReceivedEvent event) {
-    
-    int roll = ThreadLocalRandom.current().nextInt(9);
-    
-    if(roll == 8) {
-      
-      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got **3** Blue-Peppers").queue();
-      
-    } else if(roll < 3) {
-      
-      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got no Blue-Peppers").queue();
-      
-    } else if(roll < 6) {
-      
-      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got **1** Blue-Pepper").queue();
-      
-    } else {
-      
-      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got **2** Blue-Peppers").queue();
-      
-    }
-    
-  }
-  
-  
-  
-  //Throw a rock some distance
-  public void rockCommand(MessageReceivedEvent event) {
-    
-    //Guaranteed to travel at least 1 metre
-    int distance = 1;
-    
-    //25% chance of stopping
-    while(ThreadLocalRandom.current().nextInt(4) > 0) {
-      
-      //Rock travelled another metre
-      distance ++;
-      
-    }
-    
-    event.getChannel().sendMessage("Your rock travelled **" + distance + "m**").queue();
-    
-  }
-  
-  
-  
-  //Randomise the turn order
-  public void twistturnsCommand(MessageReceivedEvent event) {
-    
-    //Duplicate the list of players
-    ArrayList<Player> playersList = new ArrayList<Player>(players);
-    
-    event.getChannel().sendMessage("New players list:").queue();
-    
-    int num = 1;
-    
-    while(playersList.size() > 0) {
-      
-      //Select a random player
-      int randomPlayer = ThreadLocalRandom.current().nextInt(playersList.size());
-      
-      //Send a message with the player and the number in the new turn order
-      event.getChannel().sendMessage(num + ": " + playersList.get(randomPlayer).name).queue();
-      
-      //Remove the randomly selected player from the list
-      playersList.remove(randomPlayer);
-      
-      num ++;
-      
-    }
-    
-  }
-  
-  
-  
-  //Select 3 random candidates for an election
-  public void electionCommand(MessageReceivedEvent event) {
-    
-    //Duplicate the list of players
-    ArrayList<Player> playersList = new ArrayList<Player>(players);
-    
-    event.getChannel().sendMessage("Election candidates:").queue();
-    
-    int num = 0;
-    
-    String[] numberEmojis = {":one:",":two:",":three:"};
-    
-    while(num < 3) {
-      
-      //Select a random player
-      int randomPlayer = ThreadLocalRandom.current().nextInt(playersList.size());
-      
-      //Send a message with the randonly selected player
-      event.getChannel().sendMessage(numberEmojis[num] + ": " + playersList.get(randomPlayer).name).queue();
-      
-      //Remove the randomly selected player from the list
-      playersList.remove(randomPlayer);
-      
-      num ++;
-      
-    }
-    
-  }
-  
-  
-  
-  //Decide whether or not a player dies from jopping
-  public void automaticJopDetection(MessageReceivedEvent event) {
-    
-    if(!event.getAuthor().isBot()) {
-      
-      MessageChannel channel = event.getChannel();
-      
-      if(channel.getId().equals(joppingChannelID)) {
-        
-        boolean died = (ThreadLocalRandom.current().nextInt(80) == 1);
-        
-        if(event.getMessage().getContentDisplay().toLowerCase().contains("careful")) {
-          
-          if(died) {
-            
-            channel.sendMessage("**You died!**").queue();
-            try {
-              TimeUnit.SECONDS.sleep(3);//Wait for 3 seconds
-            } catch(InterruptedException e) {
-              e.printStackTrace();
-            }
-            channel.sendMessage("/j").queue();
-            
-          } else {
-            channel.sendMessage("You are safe").queue();
-          }
-          
-          return;
-        }
-        
-        if(died) {
-          
-          String[] messageStrings = {
-            "**You jopped too hard and died.**",
-            "**You tripped over and died.**",
-            "**You couldn't handle the power of jopping and died.**",
-            "**You passed away when attempting to jop.**"
-          };
-          int deathMessage = ThreadLocalRandom.current().nextInt(4);
-          
-          channel.sendMessage(messageStrings[deathMessage]).queue();
-          //channel.sendMessage("**LOL U died**").queue();
-          
-        } else {
-          
-          //channel.sendMessage("Remember to check if you die!").queue();
-          channel.sendMessage("**You lived!**").queue();
-          
-        }
-        
-      }
-      
-    }
-    
-  }
-  
-  
-  
-  //Make Nomic Bot sad
-  public void scoldCommand(MessageReceivedEvent event) {
-    
-    event.getChannel().sendMessage(":sob:").queue();
-    
-  }
-  
-  
-  
-  //Initiate a Wikipedia Race
-  public void wikiRaceCommand(MessageReceivedEvent event) {
-    
-    event.getChannel().sendMessage("Sorry, you'll have to initialise it yourself for now").queue();
     
   }
   
@@ -1367,7 +1001,6 @@ public class NomicBot extends ListenerAdapter {
     String name;
     String[] userIDs;
     int votes = 1;
-    String altName;
     int turnPosition;
     
     public Player(String playerStr, int turnPos) {
@@ -1377,7 +1010,6 @@ public class NomicBot extends ListenerAdapter {
       this.name = splitStr[1];
       this.userIDs = splitStr[0].split(",");
       this.votes = Integer.parseInt(splitStr[2]);
-      this.altName = splitStr[3];
       this.turnPosition = turnPos;
       
     }
@@ -1403,8 +1035,6 @@ public class NomicBot extends ListenerAdapter {
       output += "]\nname = " + this.name;
       
       output += "\nvotes = " + this.votes;
-      
-      output += "\naltName = " + this.altName;
       
       return output;
       
