@@ -5,8 +5,26 @@
   
   Nomic Discord bot
   
-  v2.0.2
+  v2.2
 **/
+
+//Relevant links:
+/// https://github.com/DV8FromTheWorld/JDA/releases
+/// https://ci.dv8tion.net/job/JDA/javadoc/net/dv8tion/jda/api/entities/User.html
+/// https://stackoverflow.com/questions/63411268/discord-js-ping-command
+/// https://ci.dv8tion.net/job/JDA/javadoc/net/dv8tion/jda/api/EmbedBuilder.html
+
+//What was left to do:
+/// Implement up+left > down -> leftvote majority detection
+/// Automate Wikipedia races
+/// Add correct vote detection for all rule types
+/// Store more details in files
+/// Remember which proposals have reached majority
+/// Better votes command which lists all votes for all current active proposals
+/// Better players command with more info
+/// Automatically send the majority message when the bot turns on if majority was reached
+/// Better error handling
+/// Add a jop command
 
 
 
@@ -16,10 +34,12 @@ import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.*;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
+import net.dv8tion.jda.api.events.message.react.MessageReactionAddEvent;
 import net.dv8tion.jda.api.exceptions.PermissionException;
 import net.dv8tion.jda.api.exceptions.RateLimitedException;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import net.dv8tion.jda.api.requests.restaction.pagination.*;
+import net.dv8tion.jda.api.EmbedBuilder;
 
 //Import authentication-related functionality
 import javax.security.auth.login.LoginException;
@@ -29,11 +49,21 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.Scanner;
 
+//Import command processing features
+import java.io.InputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.IOException;
+import java.lang.InterruptedException;
+
 //Import other utilities
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 
 
@@ -44,10 +74,13 @@ public class NomicBot extends ListenerAdapter {
   //Symbol to indicate a command
   String cmdpref = "$";
   
+  static boolean enableReactionListeners = true;
+  
   static String nomicGuildID = "701269326518419547";
   String generalChannelID    = "827413038239318066";
   String proposalsChannelID  = "827413063287439392";
   String discussionChannelID = "827413100927647765";
+  String joppingChannelID    = "895546731415076894";
   String botChannelID        = "827413269052391454";
   
   static Guild nomicGuild;
@@ -58,6 +91,9 @@ public class NomicBot extends ListenerAdapter {
   static ArrayList<String> cards = new ArrayList<String>();
   
   static int totalVotes;
+  
+  String[] voteTypeNames = {"up","down","left","right"};
+  String[][] voteTypeReactions = {{"thumbsup","1f44d"},{"thumbsdown","1f44e"},{"thumbsleft"},{"thumbsright"}};
   
   
   
@@ -115,7 +151,11 @@ public class NomicBot extends ListenerAdapter {
     
     //Set the status of the bot's account
     jda.getPresence().setActivity(Activity.playing("Nomic"));
+    ///jda.getPresence().setActivity(Activity.playing("The Final Countdown"));
     ///jda.getPresence().setActivity(Activity.playing("Development"));
+    ///jda.getPresence().setActivity(Activity.watching("your votes"));
+    ///jda.getPresence().setActivity(Activity.watching("your grammar"));
+    ///jda.getPresence().setActivity(Activity.watching("you"));
     System.out.println("Successfully set status");
     
     
@@ -129,7 +169,7 @@ public class NomicBot extends ListenerAdapter {
         
         String playerStr = playersReader.nextLine();
         
-        if(playerStr.length() > 1){
+        if(playerStr.length() > 1) {
           //Create a new Player object and add it to the players array
           players.add(new Player(playerStr, p+1));
           
@@ -152,15 +192,15 @@ public class NomicBot extends ListenerAdapter {
     
     try {
       
-      //Get the list of players in the current turn order
+      //Get the list of cards in the deck
       File cardsFile = new File("cards");
       Scanner cardsReader = new Scanner(cardsFile);
       
-      while(cardsReader.hasNextLine()){
+      while(cardsReader.hasNextLine()) {
         
         String card = cardsReader.nextLine();
         
-        if(card.length() > 1){
+        if(card.length() > 1) {
           cards.add(card);
         }
         
@@ -168,7 +208,7 @@ public class NomicBot extends ListenerAdapter {
       
     } catch(FileNotFoundException e) {
       
-      //Exit with an error message if the list of players cannot be retrieved
+      //Exit with an error message if the list of cards cannot be retrieved
       System.out.println("Failed to retrieve list of cards from file");
       e.printStackTrace();
       System.exit(1);
@@ -183,6 +223,15 @@ public class NomicBot extends ListenerAdapter {
     
     System.out.println("Identified Nomic Guild");
     
+    
+    //Warn the admin if the reaction listeners are disabled
+    if(!enableReactionListeners) {
+      
+      System.out.println("Reaction listeners disabled!");
+      
+    }
+    
+    
   }
   
   
@@ -193,13 +242,6 @@ public class NomicBot extends ListenerAdapter {
     
     //User that sent the message
     User author = event.getAuthor();
-    //The message that was received
-    Message message = event.getMessage();
-    //The channel the message was sent in
-    MessageChannel channel = event.getChannel();
-    
-    //Contents of the message (exactly what was sent by the author)
-    String msg = message.getContentDisplay();
     
     //Test whether or not the message author is a bot
     boolean bot = author.isBot();
@@ -207,52 +249,95 @@ public class NomicBot extends ListenerAdapter {
     
     
     //Test if the message was sent in a text channel in a Guild
-    if(event.isFromType(ChannelType.TEXT)) {
+    if(event.isFromType(ChannelType.PRIVATE)) {
       
-      //The guild (or "server") that the message was sent in
-      Guild guild = event.getGuild();
-      //The text channel that the message was sent in
-      TextChannel textChannel = event.getTextChannel();
-      //The member of the guild that sent the message
-      Member member = event.getMember();
+      //The message that was received
+      Message message = event.getMessage();
       
-      //Store the name of the user
-      String name;
-      if(message.isWebhookMessage()) {
-        
-        //Get the name of the webhook
-        name = author.getName();
-        
-      } else {
-        
-        //Get the member's name, or use their guild nickname if applicable
-        name = member.getEffectiveName();
-        
-      }
-      
-      //Print the message details to stdout
-      ///System.out.println("(" + guild.getName() + ")[" + textChannel.getName() + "]<" + name + ">: " + msg);
-      
-      
-    } else if(event.isFromType(ChannelType.PRIVATE)) {
+      //Contents of the message (exactly what was sent by the author)
+      String msg = message.getContentDisplay();
       
       PrivateChannel privateChannel = event.getPrivateChannel();
       
       System.out.println("[PRIVATE]<" + author.getName() + ">: " + msg);
-      
-      
-    } else {
-      
-      System.out.println("[Invalid channel type]");
       
     }
     
     
     
     //If the user sending the message is not a bot, run the command associated with the message (if applicable)
-    if(!bot){
+    ///if(!bot){
       
       this.handleMessage(event);
+      
+    ///}
+    
+  }
+  
+  
+  
+  //Define the functionality for when a reaction is added to a message
+  @Override
+  public void onMessageReactionAdd(MessageReactionAddEvent event) {
+    
+    if(!enableReactionListeners) {
+      return;
+    }
+    
+    //Get the reaction object related to the event
+    MessageReaction reaction = event.getReaction();
+    
+    //The message that was received
+    String messageID = reaction.getMessageId();
+    
+    //The channel which the event occurred in
+    MessageChannel channel = event.getChannel();
+    
+    
+    //Check if the reaction occurred in the proposals channel
+    if(channel.getId().equals(proposalsChannelID)) {
+      
+      System.out.println("Vote cast on message with ID " + messageID);
+      
+      TextChannel proposalsChannel = nomicGuild.getTextChannelById(proposalsChannelID);
+      Message proposalMessage = proposalsChannel.retrieveMessageById(messageID).complete();
+      User proposalAuthorAccount = proposalMessage.getAuthor();
+      if(proposalAuthorAccount.isBot()){
+        nomicGuild.getTextChannelById(botChannelID).sendMessage("**WARNING**: Non-fatal error encountered while watching votes - proposition author is a bot and does not match any stored player IDs").queue();
+        return;
+      }
+      Player proposalAuthor = getMatchingPlayer(proposalAuthorAccount);
+      int authorVotes = proposalAuthor.votes;
+      
+      boolean[] usersVoted = new boolean[players.size()];
+      ArrayList<User> illegalVotes = new ArrayList<User>();
+      
+      
+      String proposalType = getProposalType(proposalMessage.getContentDisplay());
+      
+      ///Cancel the majority check if the proposal is archived, an election, or a clarification
+      if(proposalType.equals("archived") || proposalType.equals("election") || proposalType.equals("clarification")) {
+        return;
+      }
+      
+      //Get the amounts of votes on the proposal
+      int[] votes = getVotes(proposalMessage, proposalAuthor, true, voteTypeReactions, usersVoted, illegalVotes);
+      
+      //Detect majority
+      String[] majorityType = detectMajorityFromVotes(voteTypeNames, votes, this.totalVotes - authorVotes);
+      
+      //Report which vote has majority (if applicable)
+      if(majorityType[1].equals("Majority")) {
+        
+        nomicGuild.getTextChannelById(botChannelID).sendMessage(proposalAuthor.name + "'s " + (proposalType.equals("edit") ? "rule edit" : proposalType + " proposal") + " has reached **" + majorityType[0] + "vote " + (ThreadLocalRandom.current().nextInt(50) == 1 ? "majoirty" : "majority") + "**\n" + proposalMessage.getJumpUrl()).queue();
+        ///System.out.println(proposalAuthor.name + "'s " + (proposalType == "edit" ? "rule edit" : proposalType + " proposal") + " has reached **" + majorityType[0] + "vote majority**");
+        
+      } else if(majorityType[1].equals("Tie")) {
+        
+        nomicGuild.getTextChannelById(botChannelID).sendMessage(proposalAuthor.name + "'s " + (proposalType.equals("edit") ? "rule edit" : proposalType + " proposal") + " has tied between **" + majorityType[0] + "**\n" + proposalMessage.getJumpUrl()).queue();
+        ///System.out.println(proposalAuthor.name + "'s " + (proposalType == "edit" ? "rule edit" : proposalType + " proposal") + " has tied between **" + majorityType[0] + "**");
+        
+      }
       
     }
     
@@ -266,7 +351,8 @@ public class NomicBot extends ListenerAdapter {
     JDA jda = event.getJDA();
     
     MessageChannel channel = event.getChannel();
-    String messageContents = event.getMessage().getContentDisplay();
+    Message message = event.getMessage();
+    String messageContents = message.getContentDisplay();
     
     if(messageContents.equals(this.cmdpref + "ping")) {
       
@@ -296,19 +382,61 @@ public class NomicBot extends ListenerAdapter {
       
       this.getVotesCommand(event);
       
+    } else if(messageContents.equals(this.cmdpref + "stats")) {
+      
+      this.statsCommand(event);
+      
     } else if(messageContents.length() > (7 + this.cmdpref.length()) && messageContents.substring(0,8 + this.cmdpref.length()).equals(this.cmdpref + "majority")) {
       
       this.confirmMajorityCommand(event);
       
-    } else if(messageContents.length() > (11 + this.cmdpref.length()) && messageContents.substring(0,12 + this.cmdpref.length()).equals(this.cmdpref + "proposaltype")) {
+    } else if(messageContents.length() > (7 + this.cmdpref.length()) && messageContents.substring(0,8 + this.cmdpref.length()).equals(this.cmdpref + "wikirace")) {
       
-      /// For debugging purposes
-      String messageID = messageContents.substring(13 + this.cmdpref.length());
-      TextChannel proposalsChannel = nomicGuild.getTextChannelById(proposalsChannelID);
-      Message proposalMessage = proposalsChannel.retrieveMessageById(messageID).complete();
+      this.wikiRaceCommand(event);
       
-      channel.sendMessage(getProposalType(proposalMessage.getContentDisplay())).queue();
+    } else if(messageContents.equals(this.cmdpref + "rice")) {
       
+      this.riceCommand(event);
+      
+    } else if(messageContents.equals(this.cmdpref + "soybeans") || messageContents.equals(this.cmdpref + "beans")) {
+      
+      this.soybeansCommand(event);
+      
+    } else if(messageContents.length() > (6 + this.cmdpref.length()) && messageContents.substring(0,7 + this.cmdpref.length()).equals(this.cmdpref + "berries")) {
+      
+      this.berriesCommand(event);
+      
+    } else if(messageContents.equals(this.cmdpref + "mushrooms")) {
+      
+      this.mushroomsCommand(event);
+      
+    } else if(messageContents.equals(this.cmdpref + "peppers")) {
+      
+      this.peppersCommand(event);
+      
+    } else if(messageContents.equals(this.cmdpref + "twistturns")) {
+      
+      this.twistturnsCommand(event);
+      
+    } else if(messageContents.equals(this.cmdpref + "election")) {
+      
+      this.electionCommand(event);
+      
+    } else if(messageContents.toLowerCase().contains("jop")) {
+      
+      this.automaticJopDetection(event);
+      
+    } else if(messageContents.equals(this.cmdpref + "scold")) {
+      
+      this.scoldCommand(event);
+      
+    }
+    
+    
+    
+    // Shhhhh
+    if(messageContents.toLowerCase().contains("majoirty")) {
+      message.addReaction("U+1f956").queue();
     }
     
   }
@@ -318,16 +446,24 @@ public class NomicBot extends ListenerAdapter {
   //Show a basic help guide for the bot
   public void helpCommand(MessageReceivedEvent event) {
     
-    String help = "__Guide to using Nomic Bot:__";
-    help += "\nCurrent command prefix is " + this.cmdpref;
-    help += "\n\nFor the current turn order and vote amounts, use the `"+this.cmdpref+"players` command";
-    help += "\nTo roll a die of size <n>, use the `"+this.cmdpref+"roll <n>` command";
-    help += "\nTo throw a rock, use the `"+this.cmdpref+"rock` command";
-    help += "\nTo get a random card, use the `"+this.cmdpref+"card` command";
-    help += "\nTo get the votes on a rule, use the `"+this.cmdpref+"votes <message ID>` command";
-    help += "\nAsk Anthony for details";
+    EmbedBuilder helpMessageBuilder = new EmbedBuilder();
+    helpMessageBuilder.setTitle("Nomic Bot Help");
+    helpMessageBuilder.getDescriptionBuilder().append("The current command prefix is " + this.cmdpref);
+    helpMessageBuilder.addField("Turn Order", "For the current turn order and vote amounts, use the `"+this.cmdpref+"players` command.", false);
+    helpMessageBuilder.addField("Votes", "To get the votes on a rule, use the `"+this.cmdpref+"votes <message ID>` command.\nNomic Bot will automatically announce when a proposal reaches majority.", false);
+    helpMessageBuilder.addField("Dice Rolling", "To roll a die of size `<n>`, use the `"+this.cmdpref+"roll <n>` command.", false);
+    helpMessageBuilder.addField("Rock Skipping", "To throw a rock, use the `"+this.cmdpref+"rock` command.", false);
+    helpMessageBuilder.addField("Random Card", "To get a random card, use the `"+this.cmdpref+"card` command.", false);
+    helpMessageBuilder.addField(
+      "Crops",
+      "Use the `"+this.cmdpref+"rice` command to harvest rice.\nUse the `"+this.cmdpref+"soybeans` command to harvest soybeans.\nUse the `"+this.cmdpref+"berries <n>` command to harvest thorned berries, where `<n>` is the amount of food items in your inventory.\nUse the `"+this.cmdpref+"mushrooms` command to harvest biofluorescent mushrooms.\nUse the `"+this.cmdpref+"peppers` command to harvest blue-peppers.",
+      false
+    );
+    helpMessageBuilder.addField("Elections", "To choose 3 random mayor candidates, use the `"+this.cmdpref+"election` command.", false);
+    helpMessageBuilder.addField("Turn Twister", "To randomise the turn order, use the `"+this.cmdpref+"twistturns` command.", false);
+    helpMessageBuilder.setFooter("Ask Anthony for more details");
     
-    event.getChannel().sendMessage(help).queue();
+    event.getChannel().sendMessageEmbeds(helpMessageBuilder.build()).queue();
     
   }
   
@@ -336,16 +472,21 @@ public class NomicBot extends ListenerAdapter {
   //List the players in the current turn order
   public void playersCommand(MessageReceivedEvent event) {
     
-    String response = "**Turn order:**";
+    String turnOrder = "";
     
     for(int p = 0;p < players.size();p ++){
       
-      response += "\n" + (p+1) + " - " + players.get(p).name + "  (" + players.get(p).votes + ")";
-      //response += "\n" + (p+1) + " - <@" + players.get(p).userIDs[0] + ">  (" + players.get(p).votes + ")";
+      //turnOrder += "\n" + (p+1) + " - " + players.get(p).name + "  (" + players.get(p).votes + ")";
+      //turnOrder += "\n" + (p+1) + " - <@" + players.get(p).userIDs[0] + ">  (" + players.get(p).votes + ")";
+      turnOrder += "\n" + (p+1) + " - " + players.get(p).name + " (<@" + players.get(p).userIDs[0] + ">)  (" + players.get(p).votes + ")";
       
     }
     
-    event.getChannel().sendMessage(response).queue();
+    EmbedBuilder response = new EmbedBuilder();
+    response.addField("Players:", turnOrder, false);
+    
+    event.getChannel().sendMessageEmbeds(response.build()).queue();
+    
     
   }
   
@@ -398,7 +539,170 @@ public class NomicBot extends ListenerAdapter {
     
     int cardNum = ThreadLocalRandom.current().nextInt( cards.size() );
     
-    event.getChannel().sendMessage("Your card is a **" + cards.get(cardNum) + "**").queue();
+    String[] vowels = {"a","e","i","o","u","8"};
+    String firstLetter = cards.get(cardNum).substring(0,1).toLowerCase();
+    String functionWord = "a";
+    for(int l = 0;l < vowels.length;l ++) {
+      if(firstLetter.equals(vowels[l])) {
+        functionWord = "an";
+        l = vowels.length;
+      }
+    }
+    
+    event.getChannel().sendMessage("Your card is " + functionWord + " **" + cards.get(cardNum) + "**").queue();
+    
+  }
+  
+  
+  
+  //Harvest rice
+  public void riceCommand(MessageReceivedEvent event) {
+    
+    int roll = ThreadLocalRandom.current().nextInt(6);
+    
+    if(roll == 0) {
+      
+      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got no rice").queue();
+      
+    } else if(roll == 5){
+      
+      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got **3** rice - please give 1 rice to another player").queue();
+      
+    } else {
+      
+      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got **1** rice").queue();
+      
+    }
+    
+  }
+  
+  
+  
+  //Harvest soybeans
+  public void soybeansCommand(MessageReceivedEvent event) {
+    
+    int roll = ThreadLocalRandom.current().nextInt(4);
+    
+    if(roll == 0) {
+      
+      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got no soybeans").queue();
+      
+    } else {
+      
+      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got **1** soybean").queue();
+      
+    }
+    
+  }
+  
+  
+  
+  //Forage for Thorned Berries
+  public void berriesCommand(MessageReceivedEvent event) {
+    
+    //Use a D7+n
+    int die = 7;
+    
+    //Check if the message is long enough
+    if(event.getMessage().getContentDisplay().length() > (8 + this.cmdpref.length())) {
+      
+      //Get the value of n
+      try {
+        
+        die += Integer.parseInt(event.getMessage().getContentDisplay().substring(8 + this.cmdpref.length()));
+        
+      } catch(NumberFormatException e) {
+        
+        //If the user supplies a non-integer parameter for the die size, send a warning message
+        event.getChannel().sendMessage("Invalid value for n").queue();
+        
+      }
+      
+    }
+    
+    if(die >= 7){
+      
+      //Generate random integer
+      int roll = ThreadLocalRandom.current().nextInt(die) + 1;
+      
+      String message;
+      
+      //Send a message corresponding to the roll
+      switch(roll) {
+        case 1:
+          message = "(Rolled 1)\nYou take **3** damage";
+          break;
+        case 2:
+          message = "(Rolled 2)\nYou take **2** damage";
+          break;
+        case 3:
+        case 4:
+          message = "(Rolled " + roll + ")\nYou get **1** thorned berry and take **3** damage";
+          break;
+        case 5:
+        case 6:
+          message = "(Rolled " + roll + ")\nYou get **1** thorned berry and take **2** damage";
+          break;
+        case 7:
+          message = "(Rolled 7)\nYou get **2** thorned berries and take **3** damage";
+          break;
+        default:
+          message = "(Rolled " + roll + ")\nYou get **1** thorned berry and take **3** damage";
+      }
+      
+      event.getChannel().sendMessage(message).queue();
+      
+    }
+    
+  }
+  
+  
+  
+  //Forage for Biofluorescent Mushrooms
+  public void mushroomsCommand(MessageReceivedEvent event) {
+    
+    int roll = ThreadLocalRandom.current().nextInt(10);
+    
+    if(roll == 9) {
+      
+      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got **2** Biofluorescent Mushrooms").queue();
+      
+    } else if(roll < 5) {
+      
+      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got no Biofluorescent Mushrooms").queue();
+      
+    } else {
+      
+      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got **1** Biofluorescent Mushroom").queue();
+      
+    }
+    
+  }
+  
+  
+  
+  //Forage for Blue-Peppers
+  public void peppersCommand(MessageReceivedEvent event) {
+    
+    int roll = ThreadLocalRandom.current().nextInt(9);
+    
+    if(roll == 8) {
+      
+      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got **3** Blue-Peppers").queue();
+      
+    } else if(roll < 3) {
+      
+      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got no Blue-Peppers").queue();
+      
+    } else if(roll < 6) {
+      
+      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got **1** Blue-Pepper").queue();
+      
+    } else {
+      
+      event.getChannel().sendMessage("(Rolled " + (roll+1) + ")\nYou got **2** Blue-Peppers").queue();
+      
+    }
     
   }
   
@@ -424,46 +728,289 @@ public class NomicBot extends ListenerAdapter {
   
   
   
+  //Randomise the turn order
+  public void twistturnsCommand(MessageReceivedEvent event) {
+    
+    //Duplicate the list of players
+    ArrayList<Player> playersList = new ArrayList<Player>(players);
+    
+    event.getChannel().sendMessage("New players list:").queue();
+    
+    int num = 1;
+    
+    while(playersList.size() > 0) {
+      
+      //Select a random player
+      int randomPlayer = ThreadLocalRandom.current().nextInt(playersList.size());
+      
+      //Send a message with the player and the number in the new turn order
+      event.getChannel().sendMessage(num + ": " + playersList.get(randomPlayer).name).queue();
+      
+      //Remove the randomly selected player from the list
+      playersList.remove(randomPlayer);
+      
+      num ++;
+      
+    }
+    
+  }
+  
+  
+  
+  //Select 3 random candidates for an election
+  public void electionCommand(MessageReceivedEvent event) {
+    
+    //Duplicate the list of players
+    ArrayList<Player> playersList = new ArrayList<Player>(players);
+    
+    event.getChannel().sendMessage("Election candidates:").queue();
+    
+    int num = 0;
+    
+    String[] numberEmojis = {":one:",":two:",":three:"};
+    
+    while(num < 3) {
+      
+      //Select a random player
+      int randomPlayer = ThreadLocalRandom.current().nextInt(playersList.size());
+      
+      //Send a message with the randonly selected player
+      event.getChannel().sendMessage(numberEmojis[num] + ": " + playersList.get(randomPlayer).name).queue();
+      
+      //Remove the randomly selected player from the list
+      playersList.remove(randomPlayer);
+      
+      num ++;
+      
+    }
+    
+  }
+  
+  
+  
+  //Decide whether or not a player dies from jopping
+  public void automaticJopDetection(MessageReceivedEvent event) {
+    
+    if(!event.getAuthor().isBot()) {
+      
+      MessageChannel channel = event.getChannel();
+      
+      if(channel.getId().equals(joppingChannelID)) {
+        
+        boolean died = (ThreadLocalRandom.current().nextInt(80) == 1);
+        
+        if(event.getMessage().getContentDisplay().toLowerCase().contains("careful")) {
+          
+          if(died) {
+            
+            channel.sendMessage("**You died!**").queue();
+            try {
+              TimeUnit.SECONDS.sleep(3);//Wait for 3 seconds
+            } catch(InterruptedException e) {
+              e.printStackTrace();
+            }
+            channel.sendMessage("/j").queue();
+            
+          } else {
+            channel.sendMessage("You are safe").queue();
+          }
+          
+          return;
+        }
+        
+        if(died) {
+          
+          String[] messageStrings = {
+            "**You jopped too hard and died.**",
+            "**You tripped over and died.**",
+            "**You couldn't handle the power of jopping and died.**",
+            "**You passed away when attempting to jop.**"
+          };
+          int deathMessage = ThreadLocalRandom.current().nextInt(4);
+          
+          channel.sendMessage(messageStrings[deathMessage]).queue();
+          //channel.sendMessage("**LOL U died**").queue();
+          
+        } else {
+          
+          //channel.sendMessage("Remember to check if you die!").queue();
+          channel.sendMessage("**You lived!**").queue();
+          
+        }
+        
+      }
+      
+    }
+    
+  }
+  
+  
+  
+  //Make Nomic Bot sad
+  public void scoldCommand(MessageReceivedEvent event) {
+    
+    event.getChannel().sendMessage(":sob:").queue();
+    
+  }
+  
+  
+  
+  //Initiate a Wikipedia Race
+  public void wikiRaceCommand(MessageReceivedEvent event) {
+    
+    event.getChannel().sendMessage("Sorry, you'll have to initialise it yourself for now").queue();
+    
+  }
+  
+  
+  
   //Check if any active rules have reached majority
   public void getVotesCommand(MessageReceivedEvent event) {
     
+    MessageChannel eventChannel = event.getChannel();
+    String commandContents = event.getMessage().getContentDisplay();
+    
     //Check if the message is long enough
-    if(event.getMessage().getContentDisplay().length() > (6 + this.cmdpref.length())) {
+    if(commandContents.length() < (7 + this.cmdpref.length())) {
       
-      //The given ID of the proposal message
-      String messageID = event.getMessage().getContentDisplay().substring(6 + this.cmdpref.length());
+      eventChannel.sendMessage("Please supply a valid message ID").queue();
+      return;
       
-      //The TextChannel object representing the #proposals channel
-      TextChannel proposalsChannel = nomicGuild.getTextChannelById(proposalsChannelID);
-      
-      //The proposal message
-      Message proposalMessage = proposalsChannel.retrieveMessageById(messageID).complete();
-      
-      //The Discord profile of the player who made the proposal
-      Player proposalAuthor = getMatchingPlayer(proposalMessage.getAuthor());
-      
-      //Store the amount of votes which the author of the proposal has
-      int authorVotes = proposalAuthor.votes;
-      
-      //Whether or not each user has voted
-      boolean[] usersVoted = new boolean[players.size()];
-      
-      //A list of any illegal or double votes, populated by the getVotes() function
-      ArrayList<User> illegalVotes = new ArrayList<User>();
-      
-      
-      //Try to work out the type of proposal, judging by the contents of the message
-      String proposalType = getProposalType(proposalMessage.getContentDisplay());
+    }
+    
+    //The given ID of the proposal message
+    String messageID = commandContents.substring(6 + this.cmdpref.length());
+    
+    //The TextChannel object representing the #proposals channel
+    TextChannel proposalsChannel = nomicGuild.getTextChannelById(proposalsChannelID);
+    
+    //The proposal message
+    Message proposalMessage = proposalsChannel.retrieveMessageById(messageID).complete();
+    
+    User proposalAuthorAccount = proposalMessage.getAuthor();
+    if(proposalAuthorAccount.isBot()){
+      eventChannel.sendMessage("**WARNING**: Non-fatal error encountered when attempting to get votes - proposition author is a bot and does not match any stored player IDs").queue();
+      return;
+    }
+    //The Discord profile of the player who made the proposal
+    Player proposalAuthor = getMatchingPlayer(proposalAuthorAccount);
+    
+    //Store the amount of votes which the author of the proposal has
+    int authorVotes = proposalAuthor.votes;
+    
+    
+    //Whether or not each user has voted
+    boolean[] usersVoted = new boolean[players.size()];
+    
+    //A list of any illegal or double votes, populated by the getVotes() function
+    ArrayList<User> illegalVotes = new ArrayList<User>();
+    
+    int[] votes;
+    String[] majorityType;
+    
+    
+    //Try to work out the type of proposal, judging by the contents of the message
+    String proposalType = getProposalType(proposalMessage.getContentDisplay());
+    
+    //Different behaviour depending on the type of proposal
+    if(proposalType == "archived") {
       
       //Annouce that the bot is getting the votes for the author's proposal
-      event.getChannel().sendMessage("__Getting votes for " + proposalAuthor.name + "'s " + (proposalType == "edit" ? "rule edit" : proposalType + " proposal") + "__").queue();
-      
+      eventChannel.sendMessage("__Getting votes for [unknown]'s " + (proposalType == "edit" ? "rule edit" : proposalType + " proposal") + "__").queue();
       
       //Get the amounts of votes on the proposal
-      int[] votes = getVotes(proposalMessage, usersVoted, proposalAuthor, illegalVotes);
+      votes = getVotes(proposalMessage, new Player(), true, voteTypeReactions, usersVoted, illegalVotes);
       
       //Report back the amounts of votes the proposal has
-      event.getChannel().sendMessage(
+      eventChannel.sendMessage(
+        "Upvotes: "    + votes[0] +
+        "\nDownvotes: "  + votes[1] +
+        "\nLeftvotes: "  + votes[2] +
+        "\nRightvotes: " + votes[3] +
+        "\n" + (votes[0] + votes[1] + votes[2] + votes[3]) + " out of " + this.totalVotes + " votes cast"
+      ).queue();
+      
+      //Detect majority
+      majorityType = detectMajorityFromVotes(voteTypeNames, votes, this.totalVotes);
+      
+      
+    } else if(proposalType == "election") {
+      
+      //Annouce that the bot is getting the votes for the election
+      eventChannel.sendMessage("__Getting votes for the current election__\n(This feature is incomplete)").queue();
+      
+      String[][] clarificationVoteTypeReactions = {{"U+31U+fe0fU+20e3"},{"U+32U+fe0fU+20e3"},{"U+33U+fe0fU+20e3"}};
+      
+      //Get the amounts of votes on the election
+      votes = getVotes(proposalMessage, new Player(), false, clarificationVoteTypeReactions, usersVoted, illegalVotes);
+      
+      //Report back the amounts of votes the proposal has
+      eventChannel.sendMessage(
+        ":one:: "    + votes[0] +
+        "\n:two:: "  + votes[1] +
+        "\n:three:: "  + votes[2] +
+        "\n" + (votes[0] + votes[1] + votes[2]) + " out of " + (players.size()-3) + " votes cast"
+      ).queue();
+      
+      //Detect majority
+      majorityType = detectMajorityFromVotes(voteTypeNames, votes, players.size()-3);
+      
+      
+    } else if(proposalType == "jester") {
+      
+      //Annouce that the bot is getting the votes for the election
+      eventChannel.sendMessage("__Getting votes for the current Court Jester vote__\n(This feature is incomplete)").queue();
+      
+      String[][] clarificationVoteTypeReactions = {{"U+30U+fe0fU+20e3"},{"U+31U+fe0fU+20e3"},{"U+32U+fe0fU+20e3"},{"U+33U+fe0fU+20e3"},{"U+34U+fe0fU+20e3"},{"U+35U+fe0fU+20e3"}};
+      
+      //Get the amounts of votes on the election
+      votes = getVotes(proposalMessage, new Player(), false, clarificationVoteTypeReactions, usersVoted, illegalVotes);
+      
+      //Report back the amounts of votes the proposal has
+      eventChannel.sendMessage(
+        ":zero:: "    + votes[0] +
+        "\n:one:: "    + votes[1] +
+        "\n:two:: "  + votes[2] +
+        "\n:three:: "  + votes[3] +
+        "\n:four:: "  + votes[4] +
+        "\n:five:: "  + votes[5] +
+        "\n" + (votes[0] + votes[1] + votes[2] + votes[3] + votes[4] + votes[5]) + " out of " + (players.size()) + " votes cast"
+      ).queue();
+      
+      //Detect majority
+      majorityType = detectMajorityFromVotes(voteTypeNames, votes, players.size());
+      
+      
+    } else if(proposalType == "clarification") {
+      
+      //Annouce that the bot is getting the votes for the clarification
+      eventChannel.sendMessage("__Getting votes for a current clarification__").queue();
+      
+      String[][] clarificationVoteTypeReactions = {{"thumbsup","1f44d"},{"thumbsdown","1f44e"}};
+      
+      //Get the amounts of votes on the clarification
+      votes = getVotes(proposalMessage, new Player(), false, clarificationVoteTypeReactions, usersVoted, illegalVotes);
+      
+      //Report back the amounts of votes the proposal has
+      eventChannel.sendMessage(
+        "Upvotes: "    + votes[0] +
+        "\nDownvotes: "  + votes[1] +
+        "\n" + (votes[0] + votes[1]) + " out of " + players.size() + " votes cast"
+      ).queue();
+      
+      //Detect majority
+      majorityType = detectMajorityFromVotes(voteTypeNames, votes, players.size());
+      
+      
+    } else {
+      
+      //Annouce that the bot is getting the votes for the author's proposal
+      eventChannel.sendMessage("__Getting votes for " + proposalAuthor.name + "'s " + (proposalType == "edit" ? "rule edit" : proposalType + " proposal") + "__").queue();
+      
+      votes = getVotes(proposalMessage, proposalAuthor, true, voteTypeReactions, usersVoted, illegalVotes);
+      
+      //Report back the amounts of votes the proposal has
+      eventChannel.sendMessage(
         "Upvotes: "    + votes[0] +
         "\nDownvotes: "  + votes[1] +
         "\nLeftvotes: "  + votes[2] +
@@ -472,98 +1019,90 @@ public class NomicBot extends ListenerAdapter {
       ).queue();
       
       //Detect majority
-      String[] majorityType = detectMajorityFromVotes(votes, this.totalVotes - authorVotes);
+      majorityType = detectMajorityFromVotes(voteTypeNames, votes, this.totalVotes - authorVotes);
       
-      //Report which vote has majority (if applicable)
-      if(majorityType[1].equals("Majority")) {
+    }
+    
+    
+    //Capitalise the first letter of the majority vote type
+    if(majorityType[0].length() > 0){
+      majorityType[0] = majorityType[0].substring(0,1).toUpperCase() + majorityType[0].substring(1);
+    }
+    
+    //Report which vote has majority (if applicable)
+    if(majorityType[1].equals("Majority")) {
+      
+      eventChannel.sendMessage("**" + majorityType[0] + "vote majority!**").queue();
+      
+    } else if(majorityType[1].equals("Tie")) {
+      
+      eventChannel.sendMessage("**" + majorityType[0] + "vote tie!**").queue();
+      
+    }
+    
+    //Send a list of users who still need to vote
+    for(int p = 0;p < usersVoted.length;p ++) {
+      
+      if(!usersVoted[p] && players.get(p) != proposalAuthor) {
         
-        event.getChannel().sendMessage("**" + majorityType[0] + "vote majority!**").queue();
-        
-      } else if(majorityType[1].equals("Tie")) {
-        
-        event.getChannel().sendMessage("**" + majorityType[0] + "vote tie!**").queue();
+        eventChannel.sendMessage(players.get(p).name + " still needs to vote").queue();
         
       }
       
-      //Send a list of users who still need to vote
-      for(int p = 0;p < usersVoted.length;p ++) {
-        
-        if(!usersVoted[p] && players.get(p) != proposalAuthor) {
-          
-          event.getChannel().sendMessage(players.get(p).name + " still needs to vote").queue();
-          
-        }
-        
-      }
-      
-      //Warn about any illegal or double votes made on the proposal
-      for(int v = 0;v < illegalVotes.size();v ++) {
-        event.getChannel().sendMessage(illegalVotes.get(v).getName() + " has illegally voted!").queue();
-      }
-      
-      
-    } else {
-      
-      event.getChannel().sendMessage("Please supply a valid message ID").queue();
-      
+    }
+    
+    //Warn about any illegal or double votes made on the proposal
+    for(int v = 0;v < illegalVotes.size();v ++) {
+      eventChannel.sendMessage(illegalVotes.get(v).getName() + " has illegally voted!").queue();
     }
     
   }
   
   //Returns the amount of votes as an array of integers
-  //0 = upvotes, 1 = downvotes, 2 = leftvotes, 3 = rightvotes
-  public int[] getVotes(Message proposalMessage, boolean[] usersVoted, Player author, ArrayList<User> illegalVotes) {
+  public int[] getVotes(Message proposalMessage, Player author, boolean includeMultipliers, String[][] voteTypes, boolean[] usersVoted, ArrayList<User> illegalVotes) {
     
     //List of unique reactions to the proposal message
     List<MessageReaction> reactions = proposalMessage.getReactions();
     
-    //Keep track of the 3 types of votes
-    int upvotes    = 0;
-    int downvotes  = 0;
-    int leftvotes  = 0;
-    int rightvotes = 0;
+    //Keep track of the votes
+    int[] votes = new int[voteTypes.length];
     
-    for(int r = 0;r < reactions.size();r ++){
+    //Loop through the reaction types on the message
+    for(int r = 0;r < reactions.size();r ++) {
       
-      if(reactions.get(r).toString().contains("thumbsup") || reactions.get(r).toString().contains("1f44d")) {
+      ///System.out.println(reactions.get(r).toString());
+      
+      //Loop through the vote types
+      for(int v = 0;v < voteTypes.length;v ++) {
         
-        //Up-votes
-        upvotes += getVoteCount(reactions.get(r), usersVoted, author, illegalVotes);
-        
-      } else if (reactions.get(r).toString().contains("thumbsdown") || reactions.get(r).toString().contains("1f44e")) {
-        
-        //Down-votes
-        downvotes += getVoteCount(reactions.get(r), usersVoted, author, illegalVotes);
-        
-      } else if (reactions.get(r).toString().contains("thumbsleft")){
-        
-        //Left-votes
-        leftvotes += getVoteCount(reactions.get(r), usersVoted, author, illegalVotes);
-        
-      } else if (reactions.get(r).toString().contains("thumbsright")){
-        
-        //Right-votes
-        rightvotes += getVoteCount(reactions.get(r), usersVoted, author, illegalVotes);
+        //Loop through the reaction types which count toward a type of vote
+        for(int a = 0;a < voteTypes[v].length;a ++) {
+          
+          if(reactions.get(r).toString().contains(voteTypes[v][a])) {
+            
+            votes[v] += getVoteCount(reactions.get(r), author, includeMultipliers, usersVoted, illegalVotes);
+            
+          }
+          
+        }
         
       }
       
     }
-    
-    int[] votes = {upvotes,downvotes,leftvotes,rightvotes};
     
     return votes;
     
   }
   
   //Get the amount of votes in a MessageReaction object
-  public int getVoteCount(MessageReaction reaction, boolean[] usersVoted, Player author, ArrayList<User> illegalVotes) {
+  public int getVoteCount(MessageReaction reaction, Player author, boolean includeMultipliers, boolean[] usersVoted, ArrayList<User> illegalVotes) {
     
     int votes = 0;
     
     //Get an iterable list of users that reacted with the given reaction
     ReactionPaginationAction users = reaction.retrieveUsers();
     
-    //Loop through the list of users who reacted
+    //Loop through the list of users who reacted (this is very slow, but there's nothing I can do about that)
     for(User user : users) {
       
       Player matchingPlayer = getMatchingPlayer(user);
@@ -587,7 +1126,7 @@ public class NomicBot extends ListenerAdapter {
         } else {
           
           //Increment the vote count
-          votes += matchingPlayer.votes;
+          votes += (includeMultipliers ? matchingPlayer.votes : 1);
           
           //Keep track of which players have voted
           usersVoted[matchingPlayer.turnPosition-1] = true;
@@ -605,21 +1144,20 @@ public class NomicBot extends ListenerAdapter {
   
   
   //Report whether a set of votes makes majority
-  public String[] detectMajorityFromVotes(int[] votes, int totalPossibleVotes) {
+  public String[] detectMajorityFromVotes(String[] voteTypes, int[] votes, int totalPossibleVotes) {
     
-    //int[] votes -> 0 = upvotes, 1 = downvotes, 2 = leftvotes, 3 = rightvotes
+    if(voteTypes.length != votes.length) {
+      return new String[]{"Error", "Error"};
+    }
     
     //Possible values:
-    // 0 = "Up", "Down", "Left", "Right", ""
+    // 0 = The type of vote
     // 1 = "Majority", "Tie", "Leading", "None"
     String[] output = {"Vote", "Type"};
     
-    String[] voteTypeText = {"Up", "Down", "Left", "Right"};
-    
-    
     //Get the amount of votes that have been cast
     int totalVotesCast = 0;
-    for(int v = 0;v < 4;v ++) {
+    for(int v = 0;v < voteTypes.length;v ++) {
       totalVotesCast += votes[v];
     }
     
@@ -641,7 +1179,7 @@ public class NomicBot extends ListenerAdapter {
     
     //Identify the highest amount of votes present
     int highest = 0;
-    for(int v = 0;v < 4;v ++) {
+    for(int v = 0;v < voteTypes.length;v ++) {
       
       if(votes[v] > highest) {
         highest = votes[v];
@@ -651,7 +1189,7 @@ public class NomicBot extends ListenerAdapter {
     
     //Create a list of all votes that are at the current highest amount
     ArrayList<Integer> highestVotes = new ArrayList<Integer>();
-    for(int v = 0;v < 4;v ++) {
+    for(int v = 0;v < voteTypes.length;v ++) {
       
       if(votes[v] == highest) {
         highestVotes.add(v);
@@ -664,7 +1202,7 @@ public class NomicBot extends ListenerAdapter {
       
       //Test if the vote type has an unbeatable lead
       boolean majority = true;
-      for(int v = 0;v < 4;v ++) {
+      for(int v = 0;v < voteTypes.length;v ++) {
         
         if(votes[v] + remainingVotes >= votes[highestVotes.get(0)] && v != highestVotes.get(0)) {
           majority = false;
@@ -673,7 +1211,7 @@ public class NomicBot extends ListenerAdapter {
       }
       
       //Return the result
-      output[0] = voteTypeText[highestVotes.get(0)];
+      output[0] = voteTypes[highestVotes.get(0)];
       output[1] = (majority ? "Majority" : "Leading");
       
       return output;
@@ -684,7 +1222,7 @@ public class NomicBot extends ListenerAdapter {
       output[0] = "";
       for(int v = 0;v < highestVotes.size();v ++) {
         
-        output[0] += voteTypeText[highestVotes.get(v)] + (v < highestVotes.size()-1 ? "," : "");
+        output[0] += voteTypes[highestVotes.get(v)] + (v < highestVotes.size()-1 ? "," : "");
         
       }
       
@@ -732,11 +1270,11 @@ public class NomicBot extends ListenerAdapter {
       
       
       //Get the amounts of votes on the proposal
-      int[] votes = getVotes(proposalMessage, usersVoted, proposalAuthor, illegalVotes);
+      int[] votes = getVotes(proposalMessage, proposalAuthor, true, voteTypeReactions, usersVoted, illegalVotes);
       
       
       //Detect majority
-      String[] majorityType = detectMajorityFromVotes(votes, this.totalVotes - authorVotes);
+      String[] majorityType = detectMajorityFromVotes(voteTypeNames, votes, this.totalVotes - authorVotes);
       
       
       event.getChannel().sendMessage(majorityType[0] + "vote " + majorityType[1]).queue();
@@ -766,11 +1304,7 @@ public class NomicBot extends ListenerAdapter {
     }
     
     //Attempt to match the type of proposal by search for matching substrings
-    if(relevantString.contains("archive")) {
-      
-      return "archived";
-      
-    } else if(relevantString.contains("theme") || relevantString.contains("thematic")) {
+    if(relevantString.contains("theme") || relevantString.contains("thematic")) {
       
       return "thematic";
       
@@ -786,7 +1320,7 @@ public class NomicBot extends ListenerAdapter {
       
       return "visual";
       
-    } else if(relevantString.contains("proposal") && relevantString.contains("edit")) {
+    } else if(relevantString.contains("edited") || relevantString.contains("modif") || relevantString.contains("redux")) {
       
       return "modified";
       
@@ -794,13 +1328,29 @@ public class NomicBot extends ListenerAdapter {
       
       return "edit";
       
-    } else if(relevantString.contains("mayor") || relevantString.contains("election")) {
+    } else if(relevantString.contains("mayor") || relevantString.contains("elect")) {
       
       return "election";
+      
+    } else if(relevantString.contains("jest") || relevantString.contains("court") || relevantString.contains("fool")) {
+      
+      return "jester";
+      
+    } else if(relevantString.contains("delet") || relevantString.contains("remov")) {
+      
+      return "deletion";
       
     } else if(relevantString.contains("clarif")) {
       
       return "clarification";
+      
+    } else if(relevantString.contains("cont")) {
+      
+      return "[continued message]";
+      
+    } else if(!relevantString.contains("season")) {
+      
+      return "[invalid rule type]";
       
     }
     
@@ -832,6 +1382,12 @@ public class NomicBot extends ListenerAdapter {
       
     }
     
+    public Player() {
+      
+      this.name = null;
+      
+    }
+    
     
     
     //Method to convert a Player object into a string for debugging
@@ -858,6 +1414,7 @@ public class NomicBot extends ListenerAdapter {
   
   
   
+  //Match a Discord user to a player
   public Player getMatchingPlayer(User discordUser) {
     
     String userID = discordUser.getId();
@@ -878,6 +1435,197 @@ public class NomicBot extends ListenerAdapter {
     }
     
     return null;
+    
+  }
+  
+  
+  
+  //Dump all vote data from #proposals
+  public void statsCommand(MessageReceivedEvent event) {
+    
+    MessageChannel eventChannel = event.getChannel();
+    TextChannel proposalsChannel = nomicGuild.getTextChannelById(proposalsChannelID);
+    
+    System.out.println("Getting proposal messages...");
+    
+    MessagePaginationAction messages = proposalsChannel.getIterableHistory();
+    
+    //First method - convert MessagePaginationAction into list:
+    List<Message> messagesList;
+    
+    try {
+      
+      //Get the list of all messages in the #proposals channel
+      messagesList = messages.takeAsync(500).get();
+      
+      System.out.println("Getting votes on " + messagesList.size() + " messages...");
+      eventChannel.sendMessage("Getting votes on " + messagesList.size() + " messages...").queue();
+      
+      //Stores the amount of votes of each type that each player has given another player
+      //This is a 3D array: [voting player],[proposing player],[vote type]
+      int[][][] totalVotes = new int[players.size()+1][players.size()+1][4];
+      
+      //Stores the amount of proposals each player has made
+      int[] totalProposals = new int[players.size()+1];
+      
+      // Loop through List, creating a ProposalMessageStats object for each element
+      for(int m = 0;m < messagesList.size();m ++){
+        
+        System.out.print(m + ",");
+        
+        ProposalMessageStats stats = new ProposalMessageStats(messagesList.get(m));
+        
+        if(stats.author == null){
+          totalProposals[players.size()] ++;
+        }else{
+          totalProposals[stats.author.turnPosition-1] ++;
+        }
+        
+        for(int pv = 0;pv < totalVotes.length;pv ++) {
+          totalVotes[pv][stats.author == null ? players.size() : stats.author.turnPosition-1][stats.playerVotes[pv]] ++;
+        }
+        
+      }
+      
+      String replyMessage = "**Votes**: Up,Down,Left,Right\nProposing: __";
+      for(int pv = 0;pv < players.size();pv ++) {
+        replyMessage += players.get(pv).name + ",  ";
+      }
+      replyMessage += "Other__\n";
+      for(int pv = 0;pv < players.size()+1;pv ++) {
+        
+        if(pv == players.size()){
+          replyMessage += "**Other**:   ";
+        }else{
+          replyMessage += "**" + (players.get(pv).name) + "**:   ";
+        }
+        
+        for(int pp = 0;pp < players.size();pp ++) {
+          
+          replyMessage += totalVotes[pv][pp][0] + "," + totalVotes[pv][pp][1] + "," + totalVotes[pv][pp][2] + "," + totalVotes[pv][pp][3] + "  ";
+          
+        }
+        replyMessage += totalVotes[pv][players.size()][0] + "," + totalVotes[pv][players.size()][1] + "," + totalVotes[pv][players.size()][2] + "," + totalVotes[pv][players.size()][3] + "  ";
+        
+        replyMessage += "\n";
+        
+      }
+      
+      System.out.println(replyMessage);
+      
+      eventChannel.sendMessage(replyMessage).queue();
+      
+      //Send total amount of proposals
+      replyMessage = "Total proposals: ";
+      for(int pv = 0;pv < players.size()+1;pv ++) {
+        replyMessage += totalProposals[pv] + "            ";
+      }
+      eventChannel.sendMessage(replyMessage).queue();
+      
+    } catch(ExecutionException e) {
+      e.printStackTrace();
+    } catch(InterruptedException e) {
+      e.printStackTrace();
+    }
+    
+    
+    
+    //Alternate method - use a foreach loop to loop through the MessagePaginationAction object:
+    ///for(Message message : messages) {
+    ///  
+    ///}
+    
+    
+  }
+  
+  
+  
+  //Used solely for the statsCommand() function
+  public class ProposalMessageStats {
+    
+    //The author of the proposal
+    Player author;
+    //How each player voted (integer represents an element in the voteTypeNames array)
+    int[] playerVotes = new int[players.size()+1];
+    //Type of proposal
+    String type;
+    
+    public ProposalMessageStats(Message proposalMessage) {
+      
+      author = getMatchingPlayer(proposalMessage.getAuthor());
+      type = getProposalType(proposalMessage.getContentDisplay());
+      
+      for(int p = 0;p < playerVotes.length;p ++) {
+        playerVotes[p] = 3;
+      }
+      if(type != "election" && type != "jester" && type != "clarification" && type != "[continued message]" && type != "[invalid rule type]"){
+        ///if(type != "archived" && type != "modified"){
+        getPlayerVotes(proposalMessage.getReactions());
+        ///}
+      }
+      
+      //System.out.println("Author: " + author.name);
+      //System.out.println("Type: " + type);
+      //for(int p = 0;p < playerVotes.length;p ++) {
+      //  System.out.print(playerVotes[p] + ",");
+      //}
+      //System.out.println("");
+      
+    }
+    
+    public void getPlayerVotes(List<MessageReaction> reactions) {
+      
+      //Loop through the reaction types on the message
+      for(int r = 0;r < reactions.size();r ++) {
+        
+        //Loop through the vote types
+        for(int v = 0;v < voteTypeReactions.length;v ++) {
+          
+          //Loop through the reaction types which count toward a type of vote
+          for(int a = 0;a < voteTypeReactions[v].length;a ++) {
+            
+            if(reactions.get(r).toString().contains(voteTypeReactions[v][a])) {
+              
+              ReactionPaginationAction users = reactions.get(r).retrieveUsers();
+              
+              //Loop through the list of users who reacted (this is very slow, but there's nothing I can do about that)
+              for(User user : users) {
+                
+                boolean matchingPlayer = false;
+                
+                //Loop through all players
+                for(int p = 0;p < players.size();p ++) {
+                  
+                  //Loop through the player's possible user IDs
+                  for(int uid = 0;uid < players.get(p).userIDs.length;uid ++) {
+                    
+                    //Check if the player's user ID matches the ID of the given user
+                    if(players.get(p).userIDs[uid].equals(user.getId())) {
+                      
+                      playerVotes[p] = v;
+                      matchingPlayer = true;
+                      
+                    }
+                    
+                  }
+                  
+                }
+                
+                if(!matchingPlayer){
+                  playerVotes[players.size()] = v;
+                }
+                
+              }
+              
+            }
+            
+          }
+          
+        }
+        
+      }
+      
+    }
     
   }
   
