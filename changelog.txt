@@ -1,0 +1,13 @@
+==== Nomic Bot Changelog ====
+
+== Season 2 ==
+2.0 - Nomic Bot was created part of the way through Season 2, using the Java Discord API.
+2.x - [Changes to Nomic Bot were not recorded during Season 2]
+2.2 - The final version of Nomic Bot was created for the end of the game.
+
+
+== Season 3 ==
+
+3.0.0
+  Nomic Bot was re-written using Discord.js for Season 3.
+  This new version responds to both slash and text commands.
