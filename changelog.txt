@@ -10,4 +10,5 @@
 
 3.0.0
   Nomic Bot was re-written using Discord.js for Season 3.
-  This new version responds to both slash and text commands.
+  The bot now responds to both slash and text commands.
+  The bot will automatically update the link(s) to the website whenever it reconnects to the internet.

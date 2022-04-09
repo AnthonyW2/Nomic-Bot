@@ -6,6 +6,9 @@
 
 
 
+//Discord.js classes
+const { Client, MessageEmbed } = require("discord.js");
+
 //Import various configurations/settings
 const Config = require("./config.json");
 const cmdpref = Config.prefix;
@@ -38,7 +41,7 @@ exports.processInteraction = async (interaction) => {
     if(args[0] === exports.list[c].name){
       
       //Execute the function corresponding to the matching command
-      exports.list[c].func(interaction, args);
+      exports.list[c].func(interaction, args, "interaction");
       
       return;
       
@@ -72,7 +75,7 @@ exports.processMessage = async (message) => {
     if(args[0] === exports.list[c].name){
       
       //Execute the function corresponding to the matching command
-      exports.list[c].func(message, args);
+      exports.list[c].func(message, args, "message");
       
       return;
       
@@ -84,29 +87,80 @@ exports.processMessage = async (message) => {
 
 
 
-exports.ping = async (event, args) => {
+//Send a response message to a command
+//Defaults to replying to slash commands, and sending a message in the same channel for text commands
+exports.respond = async (event, eventtype, response, replyoverride) => {
   
-  await event.reply("Nomic Bot is online and responsive");
-  
-}
-
-
-exports.help = async (event, args) => {
-  
-  await event.reply("[Nomic Bot help - placeholder]");
-  
-}
-
-
-exports.players = async (event, args) => {
-  
-  var reply = "List of players:";
-  
-  for(var p = 0;p < SecureInfo.players.length;p ++){
-    reply += "\n"+SecureInfo.players[p].name;
+  //If replyoverride is not supplied, use the default type of response
+  if(replyoverride == undefined){
+    
+    if(eventtype == "message"){
+      await event.channel.send(response);
+    }else{
+      await event.reply(response);
+    }
+    
+  }else if(replyoverride){
+    
+    //If replyoverride is true, reply to the command
+    await event.reply(response);
+    
+  }else{
+    
+    //If replyoverride is false, send a message in the same channel as the command
+    await event.channel.send(response);
+    
   }
   
-  await event.reply(reply);
+}
+
+
+
+//Check if Nomic Bot is online
+exports.ping = async (event, args, eventtype) => {
+  
+  await exports.respond(event, eventtype, "Nomic Bot is online and responsive");
+  
+}
+
+
+//Send a list of commands
+exports.help = async (event, args, eventtype) => {
+  
+  var helpMessage = new MessageEmbed();
+  
+  helpMessage.setTitle("Nomic Bot Help");
+  helpMessage.setDescription("The current command prefix is " + cmdpref);
+  helpMessage.addFields(
+    { name: "Player Information", value: "For the current turn order and player stats, use the `"+cmdpref+"players` command."},
+    ///{ name: "Votes", value: "To get the votes on a rule, use the `"+cmdpref+"votes <message ID>` command.\nNomic Bot will automatically announce when a proposal reaches majority."},
+    ///{ name: "Dice Rolling", value: "To roll a die of size `<n>`, use the `"+cmdpref+"roll <n>` command."},
+    ///{ name: "Random Card", value: "To get a random card, use the `"+cmdpref+"card` command."},
+  );
+  helpMessage.setFooter({
+    text: "Ask Anthony for more details"
+  });
+  
+  await exports.respond(event, eventtype, {embeds: [helpMessage]});
+  
+}
+
+
+//Send a list of players
+exports.players = async (event, args, eventtype) => {
+  
+  var playerList = "";
+  
+  for(var p = 0;p < SecureInfo.players.length;p ++){
+    
+    playerList += "\n" + (p+1) + " - " + SecureInfo.players[p].name + " (<@" + SecureInfo.players[p].ID + ">)";
+    
+  }
+  
+  var reply = new MessageEmbed();
+  reply.addField("Players:", playerList);
+  
+  await exports.respond(event, eventtype, {embeds: [reply]});
   
 }
 
