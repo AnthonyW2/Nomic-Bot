@@ -6,15 +6,25 @@
 
 
 
+"use strict";
+
 //Discord.js classes
 const { Client, MessageEmbed } = require("discord.js");
 
 //Import various configurations/settings
 const Config = require("./config.json");
 const cmdpref = Config.prefix;
+const sitePath = Config.sitePath;
 
 //Import the secure/sensitive information (token, player user IDs, etc)
 const SecureInfo = require("./secureinfo.json");
+
+//Rule class
+const { Rule } = require(sitePath+"/Rules/rule-class.js");
+
+//Rule tree and player info list
+const Rules = new Rule( require(sitePath+"/Rules/rules.json") );
+const Players = require(sitePath+"/Players/players.json");
 
 
 
@@ -34,7 +44,14 @@ exports.processInteraction = async (interaction) => {
   //Store the command as an array of arguments (args[0] is the name of the command)
   var args = [interaction.commandName];
   
-  //Iterate through commands
+  ///Add the raw option values to the args array (this is a "temporary" solution)
+  var options = interaction.options._hoistedOptions;
+  for(var o = 0;o < options.length;o ++){
+    args.push(options[o].value);
+  }
+  
+  
+  //Iterate through commands to find the matching command
   for(var c = 0;c < exports.list.length;c ++){
     
     //Check for matching command
@@ -68,7 +85,7 @@ exports.processMessage = async (message) => {
   //Split the message into arguments (args[0] is the name of the command)
   var args = message.content.substring(cmdpref.length).split(" ");
   
-  //Iterate through commands
+  //Iterate through commands to find the matching command
   for(var c = 0;c < exports.list.length;c ++){
     
     //Check for matching command
@@ -83,6 +100,23 @@ exports.processMessage = async (message) => {
     
   }
   
+  ///if(args[0] === "restart"){
+  ///  
+  ///  ///Authenticate by testing for specific user ID
+  ///  
+  ///  ///Kill the Nomic Bot process
+  ///  ///Systemd will automatically restart the bot
+  ///  
+  ///}
+  ///
+  ///if(args[0] === "reboot"){
+  ///  
+  ///  ///Authenticate by testing for specific user ID
+  ///  
+  ///  ///Reboot the server that Nomic Bot is running on
+  ///  
+  ///}
+  
 }
 
 
@@ -91,24 +125,31 @@ exports.processMessage = async (message) => {
 //Defaults to replying to slash commands, and sending a message in the same channel for text commands
 exports.respond = async (event, eventtype, response, replyoverride) => {
   
+  //Truncate the response message if it is over 2000 characters in length
+  if(typeof(response) == "string"){
+    if(response.length > 2000){
+      response = response.substr(0,2000);
+    }
+  }
+  
   //If replyoverride is not supplied, use the default type of response
   if(replyoverride == undefined){
     
     if(eventtype == "message"){
-      await event.channel.send(response);
+      return await event.channel.send(response);
     }else{
-      await event.reply(response);
+      return await event.reply(response);
     }
     
   }else if(replyoverride){
     
     //If replyoverride is true, reply to the command
-    await event.reply(response);
+    return await event.reply(response);
     
   }else{
     
     //If replyoverride is false, send a message in the same channel as the command
-    await event.channel.send(response);
+    return await event.channel.send(response);
     
   }
   
@@ -116,10 +157,39 @@ exports.respond = async (event, eventtype, response, replyoverride) => {
 
 
 
-//Check if Nomic Bot is online
+//Get the response latency of Nomic Bot
 exports.ping = async (event, args, eventtype) => {
   
-  await exports.respond(event, eventtype, "Nomic Bot is online and responsive");
+  //Time between the user sending the message and the bot getting the message
+  var initialLatency = Date.now() - event.createdTimestamp;
+  
+  //The websocket ping of this client object
+  var APILatency = Math.round(event.client.ws.ping);
+  
+  //Send an initial message with only two values
+  var initialMsg = await exports.respond(event, eventtype, "Total Latency: -\nUser to Bot Latency: "+initialLatency+"ms\nAPI Latency: "+APILatency+"ms");
+  
+  //Handle an interaction differently
+  if(eventtype == "interaction"){
+    
+    //Get the initial reply from the interaction object
+    var initialReply = await event.fetchReply();
+    
+    //Total time between the user sending the message and the bot's message reaching the Discord API
+    var pingLatency = initialReply.createdTimestamp - event.createdTimestamp;
+    
+    //Edit the initial reply to add the new value
+    await event.editReply("Total Latency: "+pingLatency+"ms\nUser to Bot Latency: "+initialLatency+"ms\nAPI Latency: "+APILatency+"ms").catch(console.error);
+    
+    return;
+    
+  }
+  
+  //Total time between the user sending the message and the bot's message reaching the Discord API
+  var pingLatency = initialMsg.createdTimestamp - event.createdTimestamp;
+  
+  //Edit the initial message to add in the new value
+  await initialMsg.edit("Total Latency: "+pingLatency+"ms\nUser to Bot Latency: "+initialLatency+"ms\nAPI Latency: "+APILatency+"ms").catch(console.error);
   
 }
 
@@ -134,6 +204,7 @@ exports.help = async (event, args, eventtype) => {
   helpMessage.addFields(
     { name: "Player Information", value: "For the current turn order and player stats, use the `"+cmdpref+"players` command."},
     ///{ name: "Votes", value: "To get the votes on a rule, use the `"+cmdpref+"votes <message ID>` command.\nNomic Bot will automatically announce when a proposal reaches majority."},
+    { name: "Random Numbers", value: "To generate a random number between `X` and `Y`, use the `"+cmdpref+"rand X Y` command.\nTo roll `X` virtual dice of size `Y`, use the `"+cmdpref+"roll XdY` command."},
     ///{ name: "Dice Rolling", value: "To roll a die of size `<n>`, use the `"+cmdpref+"roll <n>` command."},
     ///{ name: "Random Card", value: "To get a random card, use the `"+cmdpref+"card` command."},
   );
@@ -153,7 +224,7 @@ exports.players = async (event, args, eventtype) => {
   
   for(var p = 0;p < SecureInfo.players.length;p ++){
     
-    playerList += "\n" + (p+1) + " - " + SecureInfo.players[p].name + " (<@" + SecureInfo.players[p].ID + ">)";
+    playerList += "\n" + (p+1) + " - " + Players[p].name + " (<@" + SecureInfo.players[p].ID + ">)";
     
   }
   
@@ -165,12 +236,257 @@ exports.players = async (event, args, eventtype) => {
 }
 
 
+//Return a summary of the current voting status
+exports.votes = async (event, args, eventtype) => {
+  
+  //Get a list of messages in the #propositions channel
+  
+  ///var propositionsChannel = event.client.channels.cache.get(SecureInfo.channels[1].ID);
+  
+  
+  
+  ///console.log("propositionsChannel:",propositionsChannel);
+  
+  await exports.respond(event, eventtype, "Awaiting implementation");
+  
+}
+
+
+//Generate a random number, or a set of random numbers
+exports.rand = async (event, args, eventtype) => {
+  
+  var lowerbound = 0;
+  var upperbound = 1;
+  
+  if(args.length == 1){
+    //If no arguments are given, return a random number in the interval [0,1)
+    
+    await exports.respond(event, eventtype, "Number between 0 and 1:\n"+Math.random().toString());
+    return;
+    
+  }else if(args.length == 2){
+    //Return a random integer between 0 and the only argument, inclusive
+    
+    //Exit with an error message if the given argument is not a number
+    if(isNaN(args[1])){
+      await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args[1]+"` is not a number");
+      return;
+    }
+    
+    upperbound = parseInt(args[1].replace(".",""), 10);
+    
+  }else if(args.length == 3){
+    //Return a random integer between the two arguments, inclusive
+    
+    //Exit with an error message if any of the arguments are not a number
+    for(var a = 1;a < args.length;a ++){
+      if(isNaN(args[a])){
+        await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args[a]+"` is not a number");
+        return;
+      }
+    }
+    
+    lowerbound = parseInt(args[1].replace(".",""), 10);
+    upperbound = parseInt(args[2].replace(".",""), 10);
+    
+  }else{
+    //Exit with an error if too many arguments are given
+    
+    await exports.respond(event, eventtype, "ERROR: Too many arguments given. Please refer to the documentation on how to use this command:\n<http://127.0.0.1/Nomic/docs.html#nomic-bot-commands-rand>");
+    return;
+    
+  }
+  
+  var randint = Math.floor(Math.random() * (upperbound-lowerbound+1)) + lowerbound;
+  
+  await exports.respond(event, eventtype, "Random integer between "+lowerbound+" and "+upperbound+":\n"+randint);
+  
+}
+
+
+//Generate a random number in a more user-friendly way by rolling virtual dice
+exports.roll = async (event, args, eventtype) => {
+  
+  var size = 6;
+  var amount = 1;
+  
+  //If only a single parameter is given
+  if(args.length == 2){
+    
+    var arg = args[1].toLowerCase().replaceAll(".","");
+    
+    if(arg.includes("d")){
+      
+      var params = arg.split("d");
+      
+      if(params[0] != ""){
+        amount = parseInt(params[0], 10);
+      }
+      if(params[1] != ""){
+        size = parseInt(params[1], 10);
+      }
+      
+    }else{
+      
+      size = parseInt(arg, 10);
+      
+    }
+    
+  }else{
+    
+    //Iterate through the given arguments
+    for(var a = 1;a <= 2 && a < args.length;a ++){
+      
+      var arg = args[a].toLowerCase().replaceAll(".","");
+      
+      if(arg.includes("d")){
+        
+        //If the argument contains "d", then this must be the size of the dice
+        
+        var num = arg.replace("d","");
+        
+        if(isNaN(num)){
+          await exports.respond(event, eventtype, "ERROR: Supplied argument `"+num+"` is not a valid numeric input");
+          return;
+        }
+        
+        size = parseInt(num, 10);
+        
+      }else if(args[a].includes("x")){
+        
+        //If the argument contains "x", then this must be the amount of dice to roll
+        
+        var num = arg.replace("x","");
+        
+        if(isNaN(num)){
+          await exports.respond(event, eventtype, "ERROR: Supplied argument `"+num+"` is not a valid numeric input");
+          return;
+        }
+        
+        amount = parseInt(num, 10);
+        
+      }else{
+        
+        //If the argument does not contain "d" or "x", then treat the first arg as the amount and the second as the die size
+        
+        if(isNaN(arg)){
+          await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args[a]+"` is not a valid numeric input");
+          return;
+        }
+        
+        if(a === 1){
+          amount = parseInt(arg, 10);
+        }else if(a === 2){
+          size = parseInt(arg, 10);
+        }
+        
+      }
+      
+    }
+    
+  }
+  
+  
+  //Restrict the size of dice to 10000
+  size = Math.min(size, 10000);
+  //Restrict the amount of rolls to 200
+  amount = Math.min(amount, 200);
+  
+  
+  //Generate a set of random dice rolls to return
+  var rolls = [];
+  for(var r = 0;r < amount;r ++){
+    rolls.push( Math.floor(Math.random() * size) + 1 );
+  }
+  
+  //Send a message with the list of dice rolls
+  await exports.respond(event, eventtype, "Rolling "+amount+" D"+size+":\n" + rolls.join(", "));
+  
+}
+
+
+//Randomise a list of numbers or strings
+exports.listrand = async (event, args, eventtype) => {
+  
+  var list = [];
+  
+  //Return an error message if no arguments are given
+  if(args.length < 2){
+    
+    await exports.respond(event, eventtype, "ERROR: Please ensure that you supply a valid argument to this command. For more information:\n<http://127.0.0.1/Nomic/docs.html#nomic-bot-commands-listrand>");
+    return;
+    
+  }
+  
+  //Combine all the arguments together into a single string
+  var arg = "";
+  for(var a = 1;a < args.length;a ++){
+    
+    arg += args[a];
+    
+    if(a != args.length-1){
+      arg += ",";
+    }
+    
+  }
+  
+  if(args.length > 2 || arg.includes(" ") || arg.includes(",")){
+    
+    var str = arg.replaceAll(", ",",").replaceAll(" ,",",").replaceAll(" ",",").replaceAll(",,",",");
+    
+    list = str.split(",");
+    
+  }else if(!isNaN(arg)){
+    
+    var size = parseInt(arg, 10);
+    
+    for(var n = 0;n < size;n ++){
+      
+      list.push(n);
+      
+    }
+    
+  }else{
+    
+    await exports.respond(event, eventtype, "ERROR: Please ensure that you supply a valid argument to this command. For more information:\n<http://127.0.0.1/Nomic/docs.html#nomic-bot-commands-listrand>");
+    return;
+    
+  }
+  
+  var listlen = list.length;
+  
+  //Return an error if the amount of elements is too small
+  if(listlen < 2){
+    await exports.respond(event, eventtype, "ERROR: Please ensure that you supply enough items to randomise. For more information:\n<http://127.0.0.1/Nomic/docs.html#nomic-bot-commands-listrand>");
+    return;
+  }
+  
+  var output = [];
+  
+  //Iterate through the items in the list
+  for(var i = 0;i < listlen;i ++){
+    
+    //Add a random item from the original array to the output array
+    var j = Math.floor(Math.random()*list.length);
+    output.push(list[j]);
+    
+    //Remove the chosen data from the copy of the original array
+    list.splice(j,1);
+    
+  }
+  
+  
+  await exports.respond(event, eventtype, output.join(", "));
+  
+}
+
+
 
 //List of commands
 exports.list = [
   {
     name: "ping",
-    description: "Test of Nomic Bot is online",
+    description: "Get Nomic Bot reponse latency",
     func: exports.ping
   },
   {
@@ -182,6 +498,42 @@ exports.list = [
     name: "players",
     description: "List players of Season 3",
     func: exports.players
+  },
+  {
+    name: "votes",
+    description: "Return current voting status",
+    func: exports.votes
+  },
+  {
+    name: "rand",
+    description: "Generate random numbers",
+    func: exports.rand
+  },
+  {
+    name: "roll",
+    description: "Roll virtual dice for random integers",
+    func: exports.roll,
+    options: [
+      {
+        name: "amount",
+        description: "Amount of dice to roll"
+      },
+      {
+        name: "size",
+        description: "Size of the dice"
+      }
+    ]
+  },
+  {
+    name: "listrand",
+    description: "Randomise a list",
+    func: exports.listrand,
+    options: [
+      {
+        name: "items",
+        description: "Amount of items or a list of items to randomise"
+      }
+    ]
   }
 ];
 

@@ -22,17 +22,42 @@ for(var c = 0;c < Commands.list.length;c ++){
   
   //Build a slash command object using the information from commands.js and add it to the commands array
   commands.push(
-    new SlashCommandBuilder().setName( Commands.list[c].name ).setDescription( Commands.list[c].description )
+    new SlashCommandBuilder()
+      .setName( Commands.list[c].name )
+      .setDescription( Commands.list[c].description )
   );
+  
+  //Check if the command has options associated with it
+  if(Commands.list[c].options != undefined){
+    
+    for(var o = 0;o < Commands.list[c].options.length;o ++){
+      
+      //Add the options to the slash command
+      
+      var opt = Commands.list[c].options[o];
+      
+      commands[c].addStringOption(option =>
+        option.setName(opt.name).setDescription(opt.description)
+      );
+      
+    }
+    
+  }
+  
+  console.log("Updated "+Commands.list[c].name+" command");
   
 }
 
 const rest = new REST({ version: "9" }).setToken(SecureInfo.token);
 
-console.log("Registering application (/) commands...");
+///console.log("Registering application (/) commands...");
 
 rest.put(
+  //Guild-specific commands
   Routes.applicationGuildCommands(SecureInfo.botID, SecureInfo.nomicGuildID), { body: commands.map(command => command.toJSON()) }
+  
+  //Global commands
+  ///Routes.applicationCommands(SecureInfo.botID), { body: commands.map(command => command.toJSON()) }
 )
 .then(() => console.log('Successfully registered application (/) commands'))
 .catch(console.error);

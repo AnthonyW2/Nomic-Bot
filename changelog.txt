@@ -9,6 +9,9 @@
 == Season 3 ==
 
 3.0.0
+  [2022-4-7 - 2022-4-26]
   Nomic Bot was re-written using Discord.js for Season 3.
-  The bot now responds to both slash and text commands.
+  The bot now responds to both slash and text commands, using the same functionality behind the scenes for more easily maintainable code.
   The bot will automatically update the link(s) to the website whenever it reconnects to the internet.
+  Commands can use plaintext or a MessageEmbed.
+  The roll command now allows for XdY syntax.
