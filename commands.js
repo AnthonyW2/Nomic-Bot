@@ -1,15 +1,15 @@
 /**
-  Anthony Wilson
-  
-  Nomic Bot command definitions module
-**/
+ * Command definitions module
+ * 
+ * @author Anthony Wilson
+ */
 
 
 
 "use strict";
 
 //Discord.js classes
-const { Client, MessageEmbed } = require("discord.js");
+const { MessageEmbed } = require("discord.js");
 
 //Import various configurations/settings
 const Config = require("./config.json");
@@ -18,6 +18,9 @@ const sitePath = Config.sitePath;
 
 //Import the secure/sensitive information (token, player user IDs, etc)
 const SecureInfo = require("./secureinfo.json");
+
+//Import miscellaneous utility functions
+const { logMessage, identifyPlayer } = require("./utils.js");
 
 //Rule class
 const { Rule } = require(sitePath+"/Rules/rule-class.js");

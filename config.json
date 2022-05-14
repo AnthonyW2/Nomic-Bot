@@ -1,6 +1,7 @@
 {
   "prefix": "$",
   "sitePath": "../Site/Nomic",
+  "devmode": true,
   "emoji": {
     "upvote": "835128418970501191",
     "downvote": "835128415165349898"

@@ -1,12 +1,12 @@
 /**
-  Anthony Wilson
-  
-  2021-8-7 - 2022-5-7
-  
-  Nomic Discord bot
-  
-  v3.0.0
-**/
+ * Nomic Discord bot
+ * 
+ * @author Anthony Wilson
+ * 
+ * @version 3.0.0
+ * 
+ * @since 2021-8-7
+ */
 
 //Relevant links:
 /// https://discord.js.org/#/docs/discord.js/v13/general/welcome
@@ -27,9 +27,14 @@ const fetch = require("node-fetch");
 //Various configurations/settings
 const Config = require("./config.json");
 const sitePath = Config.sitePath;
+//Some minor things will function differently if Nomic Bot is running in development mode
+const devmode = Config.devmode;
 
 //Secure/sensitive information (token, player user IDs, etc)
 const SecureInfo = require("./secureinfo.json");
+
+//Import miscellaneous utility functions
+const { logMessage, identifyPlayer } = require("./utils.js");
 
 //Rule class
 const { Rule } = require(sitePath+"/Rules/rule-class.js");
@@ -45,6 +50,7 @@ const Commands = require("./commands.js");
 const Propositions = require("./propositions.js");
 
 
+
 //Create a new client instance
 const client = new Client({
   intents: [
@@ -56,13 +62,6 @@ const client = new Client({
   ],
   partials: ["MESSAGE", "CHANNEL", "REACTION"]
 });
-
-
-//Some minor things will function differently if Nomic Bot is running in development mode
-const devmode = true;
-
-//Store a reference to the log channel
-var logChannel;
 
 
 
@@ -82,6 +81,16 @@ client.on("ready", () => {
     ]
   });
   
+  //Set a different presence if the bot is running in development mode
+  if(devmode){
+    client.user.setPresence({
+      status: "online",
+      activities: [
+        { type: "PLAYING", name: "Development" }
+      ]
+    });
+  }
+  
   ///console.log("Set status");
   
   
@@ -89,11 +98,13 @@ client.on("ready", () => {
   updateServerURLMsg();
   
   
-  //Update the reference to the log channel
-  logChannel = client.channels.cache.get(SecureInfo.channels[6].ID);
+  ///Playing around with disconnect notifications
+  //console.log(client.ws);
+  //console.log(client.ws.shards.get(0));
+  //console.log("Function:",client.ws.shards.get(0).heartbeatInterval._onTimeout.toString());
   
   
-  logMessage("Nomic Bot has successfully started");
+  logMessage(client, "Nomic Bot has successfully started");
   
 });
 
@@ -120,21 +131,8 @@ var updateServerURLMsg = async () => {
     
     message.edit(msg);
     
-    logMessage("Updated server URL message");
+    logMessage(client, "Updated server URL message");
     
-  }
-  
-}
-
-
-
-//Print a message to the console and send a message in the #nas-logs thread
-var logMessage = async (message) => {
-  
-  console.log(message);
-  
-  if(!devmode){
-    logChannel.send(message);
   }
   
 }
@@ -145,8 +143,8 @@ var logMessage = async (message) => {
 client.on('messageCreate', async (message) => {
   
   //Test if the message is in the #propositions channel
-  //if(message.channelId === SecureInfo.channels[1].ID){
-  if(message.channelId === SecureInfo.channels[4].ID){
+  if(message.channelId === SecureInfo.channels[1].ID){
+  //if(message.channelId === SecureInfo.channels[4].ID){
     
     //console.log(message);
     
@@ -171,13 +169,23 @@ client.on("interactionCreate", async (interaction) => {
 //Called when a user reacts to a message
 client.on("messageReactionAdd", async (reaction, user) => {
   
+  //If the reaction message is not cached, attempt to fetch it from Discord
+  if(reaction.partial){
+    try {
+      await reaction.fetch();
+    }catch(error) {
+      console.error("Failed to fetch reaction message", error);
+      return;
+    }
+  }
+  
   //console.log("Reaction added:",reaction);
   
   //console.log(reaction.message.channelId);
   //console.log(SecureInfo.channels[1].ID);
   
-  //if(message.channelId === SecureInfo.channels[1].ID){
-  if(reaction.message.channelId === SecureInfo.channels[4].ID){
+  if(reaction.message.channelId === SecureInfo.channels[1].ID){
+  //if(reaction.message.channelId === SecureInfo.channels[4].ID){
     
     //console.log(reaction);
     
