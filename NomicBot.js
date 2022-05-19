@@ -49,6 +49,9 @@ const Commands = require("./commands.js");
 //Functions specific to propositions
 const Propositions = require("./propositions.js");
 
+//GitHub integration
+const Git = require("./git.js");
+
 
 
 //Create a new client instance
@@ -116,7 +119,7 @@ var updateServerURLMsg = async () => {
   var req = await fetch("http://ifconfig.me/ip");
   var ip = await req.text();
   
-  var msg = "Nomic website links\nGithub: https://anthonyw2.github.io/Nomic/\nAnthony's server: http://"+ip+":8084/Nomic";
+  var msg = "Nomic website links\nGithub: <https://anthonyw2.github.io/Nomic/>\nAnthony's server: http://"+ip+":8084/Nomic";
   
   var linksChannel = client.channels.cache.get(SecureInfo.channels[5].ID);
   
@@ -178,11 +181,6 @@ client.on("messageReactionAdd", async (reaction, user) => {
       return;
     }
   }
-  
-  //console.log("Reaction added:",reaction);
-  
-  //console.log(reaction.message.channelId);
-  //console.log(SecureInfo.channels[1].ID);
   
   if(reaction.message.channelId === SecureInfo.channels[1].ID){
   //if(reaction.message.channelId === SecureInfo.channels[4].ID){
