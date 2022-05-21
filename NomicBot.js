@@ -3,7 +3,7 @@
  * 
  * @author Anthony Wilson
  * 
- * @version 3.0.0
+ * @version 3.0.1
  * 
  * @since 2021-8-7
  */
@@ -44,19 +44,20 @@ global.Rule = require(sitePath+"/Rules/rule-class.js").Rule;
 global.Rules = new Rule( require(sitePath+"/Rules/rules.json") );
 global.Players = require(sitePath+"/Players/players.json");
 
+//Proposition list
+global.Propositions = require(sitePath+"/Propositions/propositions.json");
+
 //Import miscellaneous utility functions
 const Utils = require("./utils.js");
 global.logMessage = Utils.logMessage;
 global.identifyPlayer = Utils.identifyPlayer;
+global.updateFile = Utils.updateFile;
 
 //Command functions and commands list
 const Commands = require("./commands.js");
 
 //Functions specific to propositions
-const Propositions = require("./propositions.js");
-
-//GitHub integration
-const Git = require("./git.js");
+global.PropositionFunctions = require("./propositions.js");
 
 
 
@@ -74,7 +75,10 @@ global.client = new Client({
 
 
 
-//Indicate when the application has successfully connected
+/**
+ * @listens ready
+ * Triggered when the application has successfully connected.
+ */
 client.on("ready", () => {
   
   console.log(`Connected to ${client.user.tag}`);
@@ -119,7 +123,11 @@ client.on("ready", () => {
 
 
 
-//Update the message in #links that links to the website
+/**
+ * @async
+ * Update the message in #links that links to the website.
+ * Initially called by @event ready then runs again every 5 minutes.
+ */
 var updateServerURLMsg = async () => {
   
   var req = await fetch("http://ifconfig.me/ip");
@@ -153,13 +161,18 @@ var updateServerURLMsg = async () => {
 
 
 
-//Called when a message is sent in a Guild or DM that Nomic Bot has access to
+/**
+ * @async
+ * @listens messageCreate
+ * Triggered when a message is sent in a Guild or DM that Nomic Bot has access to.
+ * @param {Message} message
+ */
 client.on('messageCreate', async (message) => {
   
   //Test if the message is in the #propositions channel
   if(message.channelId === SecureInfo.channels[1].ID){
     
-    Propositions.createProposition(message);
+    PropositionFunctions.createProposition(message);
     
   }
   
@@ -169,7 +182,12 @@ client.on('messageCreate', async (message) => {
 });
 
 
-//Called when a slash command is used in a Guild or DM that Nomic Bot has access to
+/**
+ * @async
+ * @listens interactionCreate
+ * Triggered when a slash command is used in a Guild or DM that Nomic Bot has access to.
+ * @param {CommandInteraction} interaction
+ */
 client.on("interactionCreate", async (interaction) => {
   
   Commands.processInteraction(interaction);
@@ -177,7 +195,14 @@ client.on("interactionCreate", async (interaction) => {
 });
 
 
-//Called when a user reacts to a message
+
+/**
+ * @async
+ * @listens messageReactionAdd
+ * Triggered when a user reacts to a message.
+ * @param {MessageReaction} reaction
+ * @param {User} user
+ */
 client.on("messageReactionAdd", async (reaction, user) => {
   
   //If the reaction message is not cached, attempt to fetch it from Discord
@@ -192,15 +217,21 @@ client.on("messageReactionAdd", async (reaction, user) => {
   
   if(reaction.message.channelId === SecureInfo.channels[1].ID){
     
-    Propositions.handleVote(reaction);
+    PropositionFunctions.handleVote(reaction);
     
   }
   
 });
 
 
-//Called when a user removes a reaction to a message
-//Known issue: If the reaction isn't already cached, this event will not trigger
+/**
+ * @async
+ * @listens messageReactionRemove
+ * Triggered when a user removes a reaction to a message.
+ * @issue Known issue: If the reaction isn't already cached, this event will not trigger.
+ * @param {MessageReaction} reaction
+ * @param {User} user
+ */
 client.on("messageReactionRemove", async (reaction, user) => {
   
   //If the reaction message is not cached, attempt to fetch it from Discord
@@ -215,7 +246,7 @@ client.on("messageReactionRemove", async (reaction, user) => {
   
   if(reaction.message.channelId === SecureInfo.channels[1].ID){
     
-    Propositions.handleVote(reaction);
+    PropositionFunctions.handleVote(reaction);
     
   }
   
@@ -223,7 +254,7 @@ client.on("messageReactionRemove", async (reaction, user) => {
 
 
 
-// Connect to the Discord API and login into the Nomic Bot application
+// Connect to the Discord API and log into the Nomic Bot application
 client.login(SecureInfo.token);
 
 

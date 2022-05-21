@@ -9,11 +9,18 @@
 == Season 3 ==
 
 3.0.0
-  [2022-4-7 - 2022-5-14]
+  [2022-4-7 - 2022-5-21]
   Nomic Bot was re-written using Discord.js for Season 3.
   The bot now responds to both slash and text commands, using the same functionality behind the scenes for more easily maintainable code.
   The bot will automatically update the link(s) to the website whenever it reconnects to the internet.
   Commands can use plaintext or a MessageEmbed.
   The roll command now allows for XdY syntax.
   Nomic Bot automatically recognises when a proposition is made and saves it to the site.
-  When the votes on a proposition change the stored proposition data is automatically updated.
+  When the votes on a proposition change, the stored proposition data is automatically updated.
+  "git" command can be used to sync the local copy of the website to GitHub.
+  Season 3 began on the 21st of May, 14:00 AEST
+
+3.0.1
+  [2022-5-21 - 2022-5-22]
+  Nomic Bot will now only announce a majority once (added a "majority" attribute to each entry in propositions.json).
+  Cleaned up the code a bit, and added some more descriptive comments.

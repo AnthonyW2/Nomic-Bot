@@ -11,16 +11,17 @@
 //Discord.js classes
 const { MessageEmbed } = require("discord.js");
 
-//Functions specific to propositions
-const Propositions = require("./propositions.js");
-
 //Git functionality
 const Git = require("./git.js");
 
 
 
-//Triggered when a slash command is used.
-//Extracts the command arguments and calls the command.
+/**
+ * @async
+ * Extracts the command arguments and calls the command.
+ * Called by @event interactionCreate
+ * @param {CommandInteraction} interaction
+ */
 exports.processInteraction = async (interaction) => {
   
   if(!interaction.isCommand()) {
@@ -60,8 +61,12 @@ exports.processInteraction = async (interaction) => {
 }
 
 
-//Triggered when a message is sent.
-//Extracts the command arguments and calls the command.
+/**
+ * @async
+ * Extracts the command arguments and calls the command.
+ * Called by @event messageCreate
+ * @param {Message} message
+ */
 exports.processMessage = async (message) => {
   
   if(message.content.substr(0,cmdpref.length) !== cmdpref){
@@ -112,8 +117,15 @@ exports.processMessage = async (message) => {
 
 
 
-//Send a response message to a command
-//Defaults to replying to slash commands, and sending a message in the same channel for text commands
+/**
+ * @async
+ * Send a response message to a command.
+ * Defaults to replying to slash commands, and sending a message in the same channel for text commands.
+ * @param event
+ * @param {string} eventtype "message" or "interaction"
+ * @param {string} response Message data to send in response to the command
+ * @param {boolean} replyoverride If set to true, always reply. If set to false, do not reply.
+ */
 exports.respond = async (event, eventtype, response, replyoverride) => {
   
   //Truncate the response message if it is over 2000 characters in length
@@ -148,7 +160,13 @@ exports.respond = async (event, eventtype, response, replyoverride) => {
 
 
 
-//Get the response latency of Nomic Bot
+/**
+ * @async
+ * @command Get the response latency of Nomic Bot.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {[string]} args Array of arguments to the command
+ * @param {string} eventtype "message" or "interaction"
+ */
 exports.ping = async (event, args, eventtype) => {
   
   //Time between the user sending the message and the bot getting the message
@@ -185,7 +203,14 @@ exports.ping = async (event, args, eventtype) => {
 }
 
 
-//Send a list of commands
+
+/**
+ * @async
+ * @command Send a list of commands.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {[string]} args Array of arguments to the command
+ * @param {string} eventtype "message" or "interaction"
+ */
 exports.help = async (event, args, eventtype) => {
   
   var helpMessage = new MessageEmbed();
@@ -208,7 +233,14 @@ exports.help = async (event, args, eventtype) => {
 }
 
 
-//Send a list of players
+
+/**
+ * @async
+ * @command Send a list of players.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {[string]} args Array of arguments to the command
+ * @param {string} eventtype "message" or "interaction"
+ */
 exports.players = async (event, args, eventtype) => {
   
   var playerList = "";
@@ -243,10 +275,19 @@ exports.players = async (event, args, eventtype) => {
 }
 
 
-//Return a summary of the current voting status
+
+/**
+ * @async
+ * @command Return a summary of the current voting status.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {[string]} args Array of arguments to the command
+ *   @argument message The ID of the proposition message
+ * @param {string} eventtype "message" or "interaction"
+ */
 exports.votes = async (event, args, eventtype) => {
   
-  //Get a list of messages in the #propositions channel
+  //To do:
+  //Get a list of ongoing propositions if no ID is given
   
   var propositionsChannel = client.channels.cache.get(SecureInfo.channels[1].ID);
   
@@ -254,7 +295,7 @@ exports.votes = async (event, args, eventtype) => {
   var proposition = await propositionsChannel.messages.fetch(args[1]);
   
   //Get the vote status using functionality from propositions.js
-  var voteStatus = await Propositions.getVoteStatus(proposition);
+  var voteStatus = await PropositionFunctions.getVoteStatus(proposition);
   
   //Create a list of names of players who up/downvoted
   var upvoteList = [];
@@ -298,7 +339,14 @@ exports.votes = async (event, args, eventtype) => {
 }
 
 
-//Generate a random number, or a set of random numbers
+
+/**
+ * @async
+ * @command Generate a random number, or a set of random numbers.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {[string]} args Array of arguments to the command
+ * @param {string} eventtype "message" or "interaction"
+ */
 exports.rand = async (event, args, eventtype) => {
   
   var lowerbound = 0;
@@ -350,7 +398,14 @@ exports.rand = async (event, args, eventtype) => {
 }
 
 
-//Generate a random number in a more user-friendly way by rolling virtual dice
+
+/**
+ * @async
+ * @command Generate a random number in a more user-friendly way by rolling virtual dice.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {[string]} args Array of arguments to the command
+ * @param {string} eventtype "message" or "interaction"
+ */
 exports.roll = async (event, args, eventtype) => {
   
   var size = 6;
@@ -451,7 +506,14 @@ exports.roll = async (event, args, eventtype) => {
 }
 
 
-//Randomise a list of numbers or strings
+
+/**
+ * @async
+ * @command Randomise a list of numbers or strings.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {[string]} args Array of arguments to the command
+ * @param {string} eventtype "message" or "interaction"
+ */
 exports.listrand = async (event, args, eventtype) => {
   
   var list = [];
@@ -526,7 +588,14 @@ exports.listrand = async (event, args, eventtype) => {
 }
 
 
-//Return a random player
+
+/**
+ * @async
+ * @command Return a random player.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {[string]} args Array of arguments to the command
+ * @param {string} eventtype "message" or "interaction"
+ */
 exports.randplayer = async (event, args, eventtype) => {
   
   var p = Math.floor(Math.random()*Players.length);
@@ -538,7 +607,14 @@ exports.randplayer = async (event, args, eventtype) => {
 }
 
 
-//Return the player list in a random order
+
+/**
+ * @async
+ * @command Return the player list in a random order.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {[string]} args Array of arguments to the command
+ * @param {string} eventtype "message" or "interaction"
+ */
 exports.randplayerlist = async (event, args, eventtype) => {
   
   var output = [];
@@ -567,7 +643,14 @@ exports.randplayerlist = async (event, args, eventtype) => {
 }
 
 
-//Return the player list in a random order
+
+/**
+ * @async
+ * @command Return the player list in a random order.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {[string]} args Array of arguments to the command
+ * @param {string} eventtype "message" or "interaction"
+ */
 exports.git = async (event, args, eventtype) => {
   
   switch(args[1]){
@@ -678,4 +761,3 @@ exports.list = [
     ]
   }
 ];
-
