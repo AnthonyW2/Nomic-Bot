@@ -8,31 +8,10 @@
 
 "use strict";
 
-//Discord.js classes
-///const { Message } = require("discord.js");
-
 //Filesystem
 const fs = require("fs");
+const { logMessage } = require("./utils");
 
-//Import various configurations/settings
-const Config = require("./config.json");
-const cmdpref = Config.prefix;
-const sitePath = Config.sitePath;
-
-//Import the secure/sensitive information (token, player user IDs, etc)
-const SecureInfo = require("./secureinfo.json");
-
-//Import miscellaneous utility functions
-const { logMessage, identifyPlayer } = require("./utils.js");
-
-//Rule class
-const { Rule } = require(sitePath+"/Rules/rule-class.js");
-
-//Rule tree and player info list
-const Rules = new Rule( require(sitePath+"/Rules/rules.json") );
-const Players = require(sitePath+"/Players/players.json");
-
-//List of all previous propositions
 var propositions = require(sitePath+"/Propositions/propositions.json");
 
 
@@ -58,10 +37,6 @@ exports.createProposition = async (message) => {
     votes: [0,0]
   });
   
-  var newPropositionsFileContents = JSON.stringify(propositions, null, 2);
-  
-  //console.log(newPropositionsFileContents);
-  
   fs.writeFile(
     sitePath+"/Propositions/propositions.json",
     JSON.stringify(propositions, null, 2),
@@ -72,7 +47,7 @@ exports.createProposition = async (message) => {
     }
   );
   
-  logMessage(message.client, "New proposition created");
+  logMessage("New proposition created");
   //console.log("New proposition created");
   
 }
@@ -82,46 +57,26 @@ exports.createProposition = async (message) => {
 //Triggered when a user reacts to a message in #propositions
 exports.handleVote = async (reaction) => {
   
-  //console.log("User reacted to a message in #propositions");
+  var voteStatus = await exports.getVoteStatus(reaction.message);
   
-  //console.log("Reactions:",reaction.message.reactions);
-  //console.log("Reaction cache:",reaction.message.reactions.cache);
-  
-  var voteStatus = exports.getVoteStatus(reaction.message);
-  
-  //console.log("Vote status:",voteStatus);
-  
-  switch(voteStatus.majority){
-    case 0:
-      console.log("Proposition has tied!");
-      break;
-    case 1:
-      console.log("Proposition reached upvote majority!");
-      break;
-    case 2:
-      console.log("Proposition reached downvote majority!");
-  }
-  
-  /// -- BELOW CODE IS TEMPORARY --
-  
+  //Identify the matching proposition
   var prop = -1;
-  
   for(var p = 0;p < propositions.length;p ++){
-    if(reaction.message.content == propositions[p].content){
+    if(reaction.message.id == propositions[p].messageid){
       
       prop = p;
       
     }
   }
-  
   if(prop == -1){
+    logMessage("Warning: Vote detected on uncached proposition");
     return;
   }
   
+  console.log("Vote detected");
+  
   //Only modify propositions if the vote amounts are different
   if(propositions[prop].votes[0] != voteStatus.upvotes.length || propositions[prop].votes[1] != voteStatus.downvotes.length){
-    
-    console.log("Vote detected");
     
     propositions[prop].votes[0] = voteStatus.upvotes.length;
     propositions[prop].votes[1] = voteStatus.downvotes.length;
@@ -135,16 +90,34 @@ exports.handleVote = async (reaction) => {
         }
       }
     );
+  }else{
+    return;
+  }
+  
+  var majorityAnnouncementChannel = client.channels.cache.get(SecureInfo.channels[4].ID);
+  
+  switch(voteStatus.majority){
+    case 0:
+      console.log("Proposition has tied!");
+      majorityAnnouncementChannel.send("<@"+reaction.message.author.id+">'s proposition has tied, so it has not passed");
+      break;
+    case 1:
+      console.log("Proposition reached upvote majority!");
+      majorityAnnouncementChannel.send("<@"+reaction.message.author.id+">'s proposition has passed");
+      break;
+    case 2:
+      console.log("Proposition reached downvote majority!");
+      majorityAnnouncementChannel.send("<@"+reaction.message.author.id+">'s proposition has not passed");
   }
   
 }
 
 /**
- * Used by @function exports.handleVote() to get the vote status of a proposition
+ * Get the vote status of a proposition
  * @param {Message} message The message containing the proposition
  * @returns {Object} A single object "output" containing vote information
  */
-exports.getVoteStatus = (message) => {
+exports.getVoteStatus = async (message) => {
   
   /**
    * Returned by this function
@@ -161,48 +134,98 @@ exports.getVoteStatus = (message) => {
     majority: -1,
     upvotes: [],
     downvotes: [],
-    remaining: []
+    remaining: 0,
+    illegalVote: false
   };
   
-  var upvoteCount = message.reactions.cache.get(Config.emoji.upvote)?.count | 0;
-  var downvoteCount = message.reactions.cache.get(Config.emoji.downvote)?.count | 0;
+  var proponent = identifyPlayer(message.author.id);
   
-  //console.log("Upvotes:",upvoteCount);
-  //console.log("Downvotes:",downvoteCount);
+  var upvoteUsers = await message.reactions.cache.get(Config.emoji.upvote).users.fetch();
+  var downvoteUsers = await message.reactions.cache.get(Config.emoji.downvote).users.fetch();
   
-  var totalVotes = upvoteCount + downvoteCount - 2;
-  var remainingVotes = Players.length - totalVotes - 1;
-  
-  /// -- BELOW CODE IS TEMPORARY --
-  
-  for(var a = 0;a < upvoteCount-1;a ++){output.upvotes.push(0);}
-  for(var a = 0;a < downvoteCount-1;a ++){output.downvotes.push(0);}
-  
-  if(remainingVotes == 0 && upvoteCount == downvoteCount){
+  //Create a list of players who upvoted
+  for(var u = 0;u < upvoteUsers.size;u ++){
     
-    //Tie
-    output.majority = 0;
+    var player = identifyPlayer(upvoteUsers.at(u).id);
     
-  }
-  
-  if(upvoteCount + remainingVotes >= downvoteCount){
-    
-    if(downvoteCount + remainingVotes >= upvoteCount){
+    if(player == undefined){
       
-      //Not yet majority
+      if(upvoteUsers.at(u).id != SecureInfo.botID){
+        
+        //console.log("Unidentified player vote:",upvoteUsers.at(u).username);
+        output.illegalVote = true;
+        
+      }
       
     }else{
       
-      //Upvote majority
-      output.majority = 1;
+      if(player == proponent){
+        
+        //console.log("Proponent self-voted:",Players[proponent].name);
+        output.illegalVote = true;
+        
+      }else{
+        
+        output.upvotes.push(Players[player]);
+        
+      }
       
     }
     
-  }else{
+  }
+  
+  //Create a list of players who downvoted
+  for(var u = 0;u < downvoteUsers.size;u ++){
     
+    var player = identifyPlayer(downvoteUsers.at(u).id);
+    
+    if(player == undefined){
+      
+      if(downvoteUsers.at(u).id != SecureInfo.botID){
+        
+        //console.log("Unidentified player vote:",downvoteUsers.at(u).username);
+        output.illegalVote = true;
+        
+      }
+      
+    }else{
+      
+      if(player == proponent){
+        
+        //console.log("Proponent self-voted:",Players[proponent].name);
+        output.illegalVote = true;
+        
+      }else{
+        
+        output.downvotes.push(Players[player]);
+        
+      }
+      
+    }
+    
+  }
+  
+  //var upvoteCount = message.reactions.cache.get(Config.emoji.upvote)?.count | 0;
+  //var downvoteCount = message.reactions.cache.get(Config.emoji.downvote)?.count | 0;
+  
+  var totalVotes = output.upvotes.length + output.downvotes.length;
+  output.remaining = Players.length - totalVotes - 1;
+  //output.remaining = 1;
+  
+  if(output.remaining == 0 && output.upvotes.length == output.downvotes.length){
+    //Tie
+    output.majority = 0;
+    
+  }else if(output.upvotes.length + output.remaining >= output.downvotes.length){
+    
+    if(output.downvotes.length + output.remaining < output.upvotes.length){
+      //Upvote majority
+      output.majority = 1;
+    }
+    
+  }else{
     //Downvote majority
     output.majority = 2;
-    
   }
   
   return output;

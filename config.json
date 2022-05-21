@@ -1,6 +1,7 @@
 {
   "prefix": "$",
   "sitePath": "../Site/Nomic",
+  "siteURL": "https://anthonyw2.github.io/Nomic",
   "devmode": true,
   "emoji": {
     "upvote": "835128418970501191",

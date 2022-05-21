@@ -11,23 +11,11 @@
 //Discord.js classes
 const { MessageEmbed } = require("discord.js");
 
-//Import various configurations/settings
-const Config = require("./config.json");
-const cmdpref = Config.prefix;
-const sitePath = Config.sitePath;
+//Functions specific to propositions
+const Propositions = require("./propositions.js");
 
-//Import the secure/sensitive information (token, player user IDs, etc)
-const SecureInfo = require("./secureinfo.json");
-
-//Import miscellaneous utility functions
-const { logMessage, identifyPlayer } = require("./utils.js");
-
-//Rule class
-const { Rule } = require(sitePath+"/Rules/rule-class.js");
-
-//Rule tree and player info list
-const Rules = new Rule( require(sitePath+"/Rules/rules.json") );
-const Players = require(sitePath+"/Players/players.json");
+//Git functionality
+const Git = require("./git.js");
 
 
 
@@ -167,7 +155,7 @@ exports.ping = async (event, args, eventtype) => {
   var initialLatency = Date.now() - event.createdTimestamp;
   
   //The websocket ping of this client object
-  var APILatency = Math.round(event.client.ws.ping);
+  var APILatency = Math.round(client.ws.ping);
   
   //Send an initial message with only two values
   var initialMsg = await exports.respond(event, eventtype, "Total Latency: -\nUser to Bot Latency: "+initialLatency+"ms\nAPI Latency: "+APILatency+"ms");
@@ -206,9 +194,9 @@ exports.help = async (event, args, eventtype) => {
   helpMessage.setDescription("The current command prefix is " + cmdpref);
   helpMessage.addFields(
     { name: "Player Information", value: "For the current turn order and player stats, use the `"+cmdpref+"players` command."},
-    ///{ name: "Votes", value: "To get the votes on a rule, use the `"+cmdpref+"votes <message ID>` command.\nNomic Bot will automatically announce when a proposal reaches majority."},
+    { name: "Votes", value: "To get the votes on a rule, use the `"+cmdpref+"votes <message ID>` command.\nNomic Bot will automatically announce when a proposition reaches majority."},
     { name: "Random Numbers", value: "To generate a random number between `X` and `Y`, use the `"+cmdpref+"rand X Y` command.\nTo roll `X` virtual dice of size `Y`, use the `"+cmdpref+"roll XdY` command."},
-    ///{ name: "Dice Rolling", value: "To roll a die of size `<n>`, use the `"+cmdpref+"roll <n>` command."},
+    { name: "Dice Rolling", value: "To roll `N` dice of size `X`, use the `"+cmdpref+"roll NdX` command."},
     ///{ name: "Random Card", value: "To get a random card, use the `"+cmdpref+"card` command."},
   );
   helpMessage.setFooter({
@@ -225,9 +213,25 @@ exports.players = async (event, args, eventtype) => {
   
   var playerList = "";
   
-  for(var p = 0;p < SecureInfo.players.length;p ++){
+  //Print players in order of PID
+  /*
+  for(var p = 0;p < Players.length;p ++){
     
     playerList += "\n" + (p+1) + " - " + Players[p].name + " (<@" + SecureInfo.players[p].ID + ">)";
+    
+  }
+  */
+  
+  //Print players in turn order
+  for(var t = 0;t < Players.length;t ++){
+    
+    for(var p = 0;p < Players.length;p ++){
+      if(Players[p].turn == t){
+        
+        playerList += "\n" + (t+1) + " - " + Players[p].name + " (<@" + SecureInfo.players[p].ID + ">)";
+        
+      }
+    }
     
   }
   
@@ -244,13 +248,52 @@ exports.votes = async (event, args, eventtype) => {
   
   //Get a list of messages in the #propositions channel
   
-  ///var propositionsChannel = event.client.channels.cache.get(SecureInfo.channels[1].ID);
+  var propositionsChannel = client.channels.cache.get(SecureInfo.channels[1].ID);
   
+  //Get the message with the given ID
+  var proposition = await propositionsChannel.messages.fetch(args[1]);
   
+  //Get the vote status using functionality from propositions.js
+  var voteStatus = await Propositions.getVoteStatus(proposition);
   
-  ///console.log("propositionsChannel:",propositionsChannel);
+  //Create a list of names of players who up/downvoted
+  var upvoteList = [];
+  var downvoteList = [];
+  for(var p = 0;p < voteStatus.upvotes.length;p ++){
+    upvoteList.push(voteStatus.upvotes[p].name);
+  }
+  for(var p = 0;p < voteStatus.downvotes.length;p ++){
+    downvoteList.push(voteStatus.downvotes[p].name);
+  }
   
-  await exports.respond(event, eventtype, "Awaiting implementation");
+  //Create the reply as an embed
+  var reply = new MessageEmbed();
+  
+  reply.setDescription("Votes on <@"+proposition.author.id+">'s proposition");
+  
+  //Add a field describing the type of majority (if applicable)
+  switch(voteStatus.majority){
+    case -1:
+      reply.addField("Not yet majority",voteStatus.remaining+" votes remaining");
+      break;
+    case 0:
+      reply.addField("Tie","The proposition has not passed");
+      break;
+    case 1:
+      reply.addField("Upvote majority","The proposition has passed");
+      break;
+    case 2:
+      reply.addField("Downvote majority","The proposition has not passed");
+  }
+  
+  reply.addField("Upvotes:", upvoteList.join("\n"));
+  reply.addField("Downvotes:", downvoteList.join("\n"));
+  
+  if(voteStatus.illegalVote){
+    reply.addField("Warning","Illegal vote(s) detected");
+  }
+  
+  await exports.respond(event, eventtype, {embeds: [reply]});
   
 }
 
@@ -295,7 +338,7 @@ exports.rand = async (event, args, eventtype) => {
   }else{
     //Exit with an error if too many arguments are given
     
-    await exports.respond(event, eventtype, "ERROR: Too many arguments given. Please refer to the documentation on how to use this command:\n<http://127.0.0.1/Nomic/docs.html#nomic-bot-commands-rand>");
+    await exports.respond(event, eventtype, "ERROR: Too many arguments given. Please refer to the documentation on how to use this command:\n<"+Config.siteURL+"/docs.html#nomic-bot-commands-rand>");
     return;
     
   }
@@ -416,7 +459,7 @@ exports.listrand = async (event, args, eventtype) => {
   //Return an error message if no arguments are given
   if(args.length < 2){
     
-    await exports.respond(event, eventtype, "ERROR: Please ensure that you supply a valid argument to this command. For more information:\n<http://127.0.0.1/Nomic/docs.html#nomic-bot-commands-listrand>");
+    await exports.respond(event, eventtype, "ERROR: Please ensure that you supply a valid argument to this command. For more information:\n<"+Config.siteURL+"/docs.html#nomic-bot-commands-listrand>");
     return;
     
   }
@@ -451,7 +494,7 @@ exports.listrand = async (event, args, eventtype) => {
     
   }else{
     
-    await exports.respond(event, eventtype, "ERROR: Please ensure that you supply a valid argument to this command. For more information:\n<http://127.0.0.1/Nomic/docs.html#nomic-bot-commands-listrand>");
+    await exports.respond(event, eventtype, "ERROR: Please ensure that you supply a valid argument to this command. For more information:\n<"+Config.siteURL+"/docs.html#nomic-bot-commands-listrand>");
     return;
     
   }
@@ -460,7 +503,7 @@ exports.listrand = async (event, args, eventtype) => {
   
   //Return an error if the amount of elements is too small
   if(listlen < 2){
-    await exports.respond(event, eventtype, "ERROR: Please ensure that you supply enough items to randomise. For more information:\n<http://127.0.0.1/Nomic/docs.html#nomic-bot-commands-listrand>");
+    await exports.respond(event, eventtype, "ERROR: Please ensure that you supply enough items to randomise. For more information:\n<"+Config.siteURL+"/docs.html#nomic-bot-commands-listrand>");
     return;
   }
   
@@ -478,8 +521,77 @@ exports.listrand = async (event, args, eventtype) => {
     
   }
   
-  
   await exports.respond(event, eventtype, output.join(", "));
+  
+}
+
+
+//Return a random player
+exports.randplayer = async (event, args, eventtype) => {
+  
+  var p = Math.floor(Math.random()*Players.length);
+  
+  var player = Players[p];
+  
+  await exports.respond(event, eventtype, player.name);
+  
+}
+
+
+//Return the player list in a random order
+exports.randplayerlist = async (event, args, eventtype) => {
+  
+  var output = [];
+  
+  var list = [];
+  
+  //Add all player names to the list
+  for(var p = 0;p < Players.length;p ++){
+    list.push(Players[p].name);
+  }
+  
+  //Iterate through the items in the list
+  for(var i = 0;i < Players.length;i ++){
+    
+    //Add a random item from the original array to the output array
+    var j = Math.floor(Math.random()*list.length);
+    output.push(list[j]);
+    
+    //Remove the chosen data from the copy of the original array
+    list.splice(j,1);
+    
+  }
+  
+  await exports.respond(event, eventtype, output.join("\n"));
+  
+}
+
+
+//Return the player list in a random order
+exports.git = async (event, args, eventtype) => {
+  
+  switch(args[1]){
+    case "status":
+      
+      Git.status((output) => {
+        exports.respond(event, eventtype, "```"+output.stdout+"```");
+      });
+      
+      break;
+    case "pull":
+      
+      break;
+    case "push":
+      
+      Git.push("Synced changes",(output) => {
+        exports.respond(event, eventtype, "```"+output.stdout+"```");
+      });
+      
+      break;
+    case "sync":
+      console.log("Awaiting implementation");
+      break;
+  }
   
 }
 
@@ -505,7 +617,13 @@ exports.list = [
   {
     name: "votes",
     description: "Return current voting status",
-    func: exports.votes
+    func: exports.votes,
+    options: [
+      {
+        name: "message",
+        description: "ID of the proposition message"
+      }
+    ]
   },
   {
     name: "rand",
@@ -535,6 +653,27 @@ exports.list = [
       {
         name: "items",
         description: "Amount of items or a list of items to randomise"
+      }
+    ]
+  },
+  {
+    name: "randplayer",
+    description: "Return a random player",
+    func: exports.randplayer
+  },
+  {
+    name: "randplayerlist",
+    description: "Return the list of players in a random order",
+    func: exports.randplayerlist
+  },
+  {
+    name: "git",
+    description: "Run a git command",
+    func: exports.git,
+    options: [
+      {
+        name: "command",
+        description: "The git command to run [status/sync/push/pull]"
       }
     ]
   }

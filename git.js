@@ -8,10 +8,6 @@
 
 "use strict";
 
-const SecureInfo = require("./secureinfo.json");
-
-const Config = require("./config.json");
-
 const { exec } = require("child_process");
 
 
@@ -33,6 +29,28 @@ exports.pull = async (callback) => {
 exports.push = async (message, callback) => {
   
   exec("./git-push-site " + SecureInfo.gitToken + " " + "'"+message+"'", (error, stdout, stderr) => {
+    
+    callback({
+      error: error,
+      stdout: stdout,
+      stderr: stderr
+    });
+    
+  });
+  
+}
+
+exports.sync = async (callback) => {
+  
+  //Use git-diff to check whether the local repo is ahead of/behind the remote repo
+  //Sync accordingly
+  
+}
+
+//Identify if the local repo is ahead of or behind the remote repo
+exports.status = async (callback) => {
+  
+  exec("./git-status-site", (error, stdout, stderr) => {
     
     callback({
       error: error,

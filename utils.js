@@ -1,21 +1,15 @@
 /**
-  Anthony Wilson
-  
-  Nomic Bot miscellaneous utility functions
-**/
+ * Miscellaneous utility functions
+ * 
+ * @author Anthony Wilson
+ */
 
 
 
 "use strict";
 
-const { devmode } = require("./config.json");
-
-const SecureInfo = require("./secureinfo.json");
-
-
-
 //Print a message to the console and send a message in the #nas-logs thread
-exports.logMessage = async (client, message) => {
+exports.logMessage = async (message) => {
   
   console.log(message);
   

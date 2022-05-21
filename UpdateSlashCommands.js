@@ -52,14 +52,18 @@ const rest = new REST({ version: "9" }).setToken(SecureInfo.token);
 
 ///console.log("Registering application (/) commands...");
 
+//Guild-specific commands
 rest.put(
-  //Guild-specific commands
   Routes.applicationGuildCommands(SecureInfo.botID, SecureInfo.nomicGuildID), { body: commands.map(command => command.toJSON()) }
-  
-  //Global commands
-  ///Routes.applicationCommands(SecureInfo.botID), { body: commands.map(command => command.toJSON()) }
 )
-.then(() => console.log('Successfully registered application (/) commands'))
+.then(() => console.log('Successfully registered Guild application (/) commands'))
+.catch(console.error);
+
+//Global commands
+rest.put(
+  Routes.applicationCommands(SecureInfo.botID), { body: commands.map(command => command.toJSON()) }
+)
+.then(() => console.log('Successfully registered Global application (/) commands'))
 .catch(console.error);
 
 

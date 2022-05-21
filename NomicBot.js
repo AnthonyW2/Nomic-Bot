@@ -24,24 +24,30 @@ const { Client, Intents } = require("discord.js");
 //Fetch
 const fetch = require("node-fetch");
 
+//Timers
+const timers = require("timers");
+
 //Various configurations/settings
-const Config = require("./config.json");
-const sitePath = Config.sitePath;
+global.Config = require("./config.json");
+global.cmdpref = Config.prefix;
+global.sitePath = Config.sitePath;
 //Some minor things will function differently if Nomic Bot is running in development mode
-const devmode = Config.devmode;
+global.devmode = Config.devmode;
 
 //Secure/sensitive information (token, player user IDs, etc)
-const SecureInfo = require("./secureinfo.json");
-
-//Import miscellaneous utility functions
-const { logMessage, identifyPlayer } = require("./utils.js");
+global.SecureInfo = require("./secureinfo.json");
 
 //Rule class
-const { Rule } = require(sitePath+"/Rules/rule-class.js");
+global.Rule = require(sitePath+"/Rules/rule-class.js").Rule;
 
 //Rule tree and player info list
-const Rules = new Rule( require(sitePath+"/Rules/rules.json") );
-const Players = require(sitePath+"/Players/players.json");
+global.Rules = new Rule( require(sitePath+"/Rules/rules.json") );
+global.Players = require(sitePath+"/Players/players.json");
+
+//Import miscellaneous utility functions
+const Utils = require("./utils.js");
+global.logMessage = Utils.logMessage;
+global.identifyPlayer = Utils.identifyPlayer;
 
 //Command functions and commands list
 const Commands = require("./commands.js");
@@ -55,7 +61,7 @@ const Git = require("./git.js");
 
 
 //Create a new client instance
-const client = new Client({
+global.client = new Client({
   intents: [
     Intents.FLAGS.GUILDS,
     Intents.FLAGS.GUILD_MESSAGES,
@@ -101,13 +107,13 @@ client.on("ready", () => {
   updateServerURLMsg();
   
   
-  ///Playing around with disconnect notifications
+  ///Still to do: Get disconnect notifications working
   //console.log(client.ws);
   //console.log(client.ws.shards.get(0));
   //console.log("Function:",client.ws.shards.get(0).heartbeatInterval._onTimeout.toString());
   
   
-  logMessage(client, "Nomic Bot has successfully started");
+  logMessage("Nomic Bot has successfully started");
   
 });
 
@@ -134,9 +140,14 @@ var updateServerURLMsg = async () => {
     
     message.edit(msg);
     
-    logMessage(client, "Updated server URL message");
+    logMessage("Updated server URL message");
     
   }
+  
+  //Update the link message again (if necessary) in 5 minutes
+  timers.setTimeout(() => {
+    updateServerURLMsg();
+  }, 1000*60*5);
   
 }
 
@@ -147,9 +158,6 @@ client.on('messageCreate', async (message) => {
   
   //Test if the message is in the #propositions channel
   if(message.channelId === SecureInfo.channels[1].ID){
-  //if(message.channelId === SecureInfo.channels[4].ID){
-    
-    //console.log(message);
     
     Propositions.createProposition(message);
     
@@ -183,9 +191,6 @@ client.on("messageReactionAdd", async (reaction, user) => {
   }
   
   if(reaction.message.channelId === SecureInfo.channels[1].ID){
-  //if(reaction.message.channelId === SecureInfo.channels[4].ID){
-    
-    //console.log(reaction);
     
     Propositions.handleVote(reaction);
     
@@ -195,9 +200,24 @@ client.on("messageReactionAdd", async (reaction, user) => {
 
 
 //Called when a user removes a reaction to a message
+//Known issue: If the reaction isn't already cached, this event will not trigger
 client.on("messageReactionRemove", async (reaction, user) => {
   
-  //console.log("Reaction removed:",reaction);
+  //If the reaction message is not cached, attempt to fetch it from Discord
+  if(reaction.partial){
+    try {
+      await reaction.fetch();
+    }catch(error) {
+      console.error("Failed to fetch reaction message", error);
+      return;
+    }
+  }
+  
+  if(reaction.message.channelId === SecureInfo.channels[1].ID){
+    
+    Propositions.handleVote(reaction);
+    
+  }
   
 });
 
