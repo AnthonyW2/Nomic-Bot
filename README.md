@@ -1,6 +1,6 @@
 # Nomic-Bot
 Specialised Discord bot for a game of Nomic.
 
-Current version: v3.0.0 (in development)
+Current version: v3.1.1
 
-Some parts of this bot have been contributed by other players.
+See https://anthonyw2.github.io/Nomic/docs.html for documentation.

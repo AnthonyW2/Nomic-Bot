@@ -30,3 +30,7 @@
   Added leftvote & rightvote support.
   getVoteStatus() now properly returns an array of players yet to vote.
   Nomic Bot will automatically mention the "Proposition Ping" role whenever a proposition is created.
+
+3.1.1
+  [2022-5-22 - 2022-5-22]
+  Fixed a bug causing propositions to be stored incorrectly.

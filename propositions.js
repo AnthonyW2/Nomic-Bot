@@ -20,8 +20,8 @@ exports.createProposition = async (message) => {
   
   var upvoteEmoji = message.guild.emojis.cache.get(Config.emoji.upvote);
   var downvoteEmoji = message.guild.emojis.cache.get(Config.emoji.downvote);
-  var leftvoteEmoji = message.guild.emojis.cache.get(Config.emoji.downvote);
-  var rightvoteEmoji = message.guild.emojis.cache.get(Config.emoji.downvote);
+  var leftvoteEmoji = message.guild.emojis.cache.get(Config.emoji.leftvote);
+  var rightvoteEmoji = message.guild.emojis.cache.get(Config.emoji.rightvote);
   //var upvoteEmoji = "👍";
   //var downvoteEmoji = "👎";
   
@@ -42,7 +42,7 @@ exports.createProposition = async (message) => {
     content: message.content,
     path: "",
     timestamp: message.createdTimestamp,
-    messageid: message.id,
+    messageID: message.id,
     votes: [0,0,0,0],
     majority: false
   });
@@ -71,11 +71,11 @@ exports.handleVote = async (reaction) => {
   //Identify the matching proposition
   var prop = -1;
   for(var p = 0;p < Propositions.length;p ++){
-    if(reaction.message.id == Propositions[p].messageid){
-      
+    
+    if(reaction.message.id == Propositions[p].messageID){
       prop = p;
-      
     }
+    
   }
   if(prop == -1){
     logMessage("**Warning**: Vote detected on uncached proposition");
@@ -87,31 +87,44 @@ exports.handleVote = async (reaction) => {
   //Only announce a majority if it has not already been announced
   if(!Propositions[prop].majority){
     
-    Propositions[prop].majority = true;
-    
     var majorityAnnouncementChannel = client.channels.cache.get(SecureInfo.channels[4].ID);
     
     switch(voteStatus.majority){
       case 0:
         console.log("Proposition has tied!");
         majorityAnnouncementChannel.send("<@"+reaction.message.author.id+">'s proposition has tied, so it has not passed");
+        Propositions[prop].majority = true;
         break;
       case 1:
         console.log("Proposition reached upvote majority!");
         majorityAnnouncementChannel.send("<@"+reaction.message.author.id+">'s proposition has passed");
+        Propositions[prop].majority = true;
         break;
       case 2:
         console.log("Proposition reached downvote majority!");
         majorityAnnouncementChannel.send("<@"+reaction.message.author.id+">'s proposition has not passed");
+        Propositions[prop].majority = true;
+        break;
+      case 3:
+        console.log("Proposition reached leftvote majority!");
+        majorityAnnouncementChannel.send("<@"+reaction.message.author.id+">'s proposition has not passed");
+        Propositions[prop].majority = true;
     }
     
   }
   
   //Only modify Propositions if the vote amounts are different
-  if(Propositions[prop].votes[0] != voteStatus.upvotes.length || Propositions[prop].votes[1] != voteStatus.downvotes.length){
+  if(
+    Propositions[prop].votes[0] != voteStatus.upvotes.length ||
+    Propositions[prop].votes[1] != voteStatus.downvotes.length ||
+    Propositions[prop].votes[2] != voteStatus.leftvotes.length ||
+    Propositions[prop].votes[3] != voteStatus.rightvotes.length
+  ){
     
     Propositions[prop].votes[0] = voteStatus.upvotes.length;
     Propositions[prop].votes[1] = voteStatus.downvotes.length;
+    Propositions[prop].votes[2] = voteStatus.leftvotes.length;
+    Propositions[prop].votes[3] = voteStatus.rightvotes.length;
     
     updateFile("propositions");
     
