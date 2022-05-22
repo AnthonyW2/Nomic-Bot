@@ -20,22 +20,30 @@ exports.createProposition = async (message) => {
   
   var upvoteEmoji = message.guild.emojis.cache.get(Config.emoji.upvote);
   var downvoteEmoji = message.guild.emojis.cache.get(Config.emoji.downvote);
+  var leftvoteEmoji = message.guild.emojis.cache.get(Config.emoji.downvote);
+  var rightvoteEmoji = message.guild.emojis.cache.get(Config.emoji.downvote);
   //var upvoteEmoji = "👍";
   //var downvoteEmoji = "👎";
   
-  //React to the message with upvote and downvote emoji
+  //React to the message with the vote emoji
   message.react(upvoteEmoji).then(() => {
-    message.react(downvoteEmoji);
+    message.react(downvoteEmoji).then(() => {
+      message.react(leftvoteEmoji).then(() => {
+        message.react(rightvoteEmoji);
+      });
+    });
   });
+  
+  var proponent = identifyPlayer(message.author.id);
   
   //Add the proposition to the list
   Propositions.push({
-    author: 0,
+    author: proponent,
     content: message.content,
     path: "",
     timestamp: message.createdTimestamp,
     messageid: message.id,
-    votes: [0,0],
+    votes: [0,0,0,0],
     majority: false
   });
   
@@ -43,6 +51,8 @@ exports.createProposition = async (message) => {
   updateFile("propositions");
   
   logMessage("New proposition created");
+  
+  await client.channels.cache.get(SecureInfo.channels[2].ID).send("<@&977412127121879100> "+Players[proponent].name+" has made a proposition");
   
 }
 
@@ -109,6 +119,8 @@ exports.handleVote = async (reaction) => {
   
 }
 
+
+
 /**
  * @async
  * Get the vote status of a proposition.
@@ -120,110 +132,217 @@ exports.getVoteStatus = async (message) => {
   /**
    * Returned by this function
    * @property {integer} majority The type of majority (if applicable).
-   *   -1 = no majority
-   *   0 = tie
-   *   1 = upvote majority
-   *   2 = downvote majority
-   * @property {Player} upvotes Array of players who upvoted
-   * @property {Player} downvotes Array of players who downvoted
-   * @property {Player} remaining Array of players who are yet to vote
+   * * -1 = no majority
+   * * 0 = tie
+   * * 1 = upvote majority
+   * * 2 = downvote majority
+   * * 3 = leftvote majority
+   * @property {[Player]} upvotes Array of players who upvoted
+   * @property {[Player]} downvotes Array of players who downvoted
+   * @property {[Player]} leftvotes Array of players who leftvoted
+   * @property {[Player]} rightvotes Array of players who rightvoted
+   * @property {[Player]} remaining Array of players who are yet to vote
    */
   var output = {
     majority: -1,
     upvotes: [],
     downvotes: [],
-    remaining: 0,
+    leftvotes: [],
+    rightvotes: [],
+    remaining: [],
     illegalVote: false
   };
   
+  
+  //Store the PID of the proponent
   var proponent = identifyPlayer(message.author.id);
   
+  
+  //Get the players who upvoted
   var upvoteUsers = await message.reactions.cache.get(Config.emoji.upvote)?.users.fetch();
+  var upvotePlayers = getVotePlayers(upvoteUsers, proponent);
+  output.upvotes = upvotePlayers.players;
+  
+  //Get the players who downvoted
   var downvoteUsers = await message.reactions.cache.get(Config.emoji.downvote)?.users.fetch();
+  var downvotePlayers = getVotePlayers(downvoteUsers, proponent);
+  output.downvotes = downvotePlayers.players;
   
-  //Create a list of players who upvoted
-  for(var u = 0;upvoteUsers != undefined && u < upvoteUsers.size;u ++){
+  //Get the players who leftvoted
+  var leftvoteUsers = await message.reactions.cache.get(Config.emoji.leftvote)?.users.fetch();
+  var leftvotePlayers = getVotePlayers(leftvoteUsers, proponent);
+  output.leftvotes = leftvotePlayers.players;
+  
+  //Get the players who rightvoted
+  var rightvoteUsers = await message.reactions.cache.get(Config.emoji.rightvote)?.users.fetch();
+  var rightvotePlayers = getVotePlayers(rightvoteUsers, proponent);
+  output.rightvotes = rightvotePlayers.players;
+  
+  //Detect any illegal votes
+  output.illegalVote = (upvotePlayers.illegalVote || downvotePlayers.illegalVote || leftvotePlayers.illegalVote || rightvotePlayers.illegalVote);
+  
+  
+  //Count how many times each player voted
+  var votedPlayers = [];
+  for(var p = 0;p < Players.length;p ++){
+    votedPlayers.push(0);
+  }
+  for(var p = 0;p < output.upvotes.length;p ++){
+    votedPlayers[output.upvotes[p].PID] ++;
+  }
+  for(var p = 0;p < output.downvotes.length;p ++){
+    votedPlayers[output.downvotes[p].PID] ++;
+  }
+  for(var p = 0;p < output.leftvotes.length;p ++){
+    votedPlayers[output.leftvotes[p].PID] ++;
+  }
+  for(var p = 0;p < output.rightvotes.length;p ++){
+    votedPlayers[output.rightvotes[p].PID] ++;
+  }
+  for(var p = 0;p < votedPlayers.length;p ++){
     
-    var player = identifyPlayer(upvoteUsers.at(u).id);
-    
-    if(player == undefined){
+    if(votedPlayers[p] == 0){
       
-      if(upvoteUsers.at(u).id != SecureInfo.botID){
-        
-        //console.log("Unidentified player vote:",upvoteUsers.at(u).username);
-        output.illegalVote = true;
-        
+      if(p != proponent){
+        //Player has not voted yet - add to "output.remaining" array
+        output.remaining.push(Players[p]);
       }
       
-    }else{
+    }else if(votedPlayers[p] > 1){
       
-      if(player == proponent){
-        
-        //console.log("Proponent self-voted:",Players[proponent].name);
-        output.illegalVote = true;
-        
-      }else{
-        
-        output.upvotes.push(Players[player]);
-        
-      }
+      //If the player has voted more than once, it is an illegal vote
+      output.illegalVote = true;
+      //Ensure that a majority is not returned, as it would involve the illegal vote
+      output.majority = -1;
+      //Return the results, because majority checks are unnecessary
+      return output;
       
     }
     
   }
   
-  //Create a list of players who downvoted
-  for(var u = 0;downvoteUsers != undefined && u < downvoteUsers.size;u ++){
-    
-    var player = identifyPlayer(downvoteUsers.at(u).id);
-    
-    if(player == undefined){
-      
-      if(downvoteUsers.at(u).id != SecureInfo.botID){
-        
-        //console.log("Unidentified player vote:",downvoteUsers.at(u).username);
-        output.illegalVote = true;
-        
-      }
-      
-    }else{
-      
-      if(player == proponent){
-        
-        //console.log("Proponent self-voted:",Players[proponent].name);
-        output.illegalVote = true;
-        
-      }else{
-        
-        output.downvotes.push(Players[player]);
-        
-      }
-      
-    }
-    
-  }
   
+  ///The .count property could be used to validate the results from the code above
   //var upvoteCount = message.reactions.cache.get(Config.emoji.upvote)?.count | 0;
   //var downvoteCount = message.reactions.cache.get(Config.emoji.downvote)?.count | 0;
   
-  var totalVotes = output.upvotes.length + output.downvotes.length;
-  output.remaining = Players.length - totalVotes - 1;
-  //output.remaining = 1;
   
-  if(output.remaining == 0 && output.upvotes.length == output.downvotes.length){
-    //Tie
-    output.majority = 0;
-    
-  }else if(output.upvotes.length + output.remaining >= output.downvotes.length){
-    
-    if(output.downvotes.length + output.remaining < output.upvotes.length){
-      //Upvote majority
-      output.majority = 1;
+  //Sanity check
+  var totalVotes = output.upvotes.length + output.downvotes.length + output.leftvotes.length + output.rightvotes.length;
+  if(totalVotes + output.remaining.length != Players.length-1){
+    logMessage("**Warning**: Total votes + remaining votes does not equal the total amount of possible votes");
+    return output;
+  }
+  
+  
+  var upvotes = output.upvotes.length;
+  var downvotes = output.downvotes.length;
+  var leftvotes = output.leftvotes.length;
+  var remaining = output.remaining.length;
+  
+  if(remaining == 0){
+    //If there are no votes remaining a majority must be reached
+    if(upvotes == downvotes){
+      if(leftvotes == 0){
+        //TIE
+        output.majority = 0;
+      }else if(leftvotes > 0){
+        //LEFT
+        output.majority = 3;
+      }
+    }else if(upvotes > downvotes){
+      if(leftvotes >= upvotes){
+        //LEFT
+        output.majority = 3;
+      }else if(upvotes > leftvotes){
+        //UP
+        output.majority = 1;
+      }
+    }else if(downvotes > upvotes){
+      if(leftvotes + upvotes > downvotes){
+        //LEFT
+      }else if(downvotes >= leftvotes + upvotes){
+        //DOWN
+        output.majority = 2;
+      }
     }
     
   }else{
-    //Downvote majority
-    output.majority = 2;
+    //If there are votes remaining a majority may or may not be reached
+    if(leftvotes > downvotes + remaining || upvotes > downvotes + remaining){
+      //Cannot be downvote majority
+      if(leftvotes >= upvotes + remaining){
+        //LEFT
+        output.majority = 3;
+      }else if(upvotes > leftvotes + remaining){
+        //UP
+        output.majority = 1;
+      }
+    }else if(leftvotes > upvotes + remaining || downvotes > upvotes + remaining){
+      //Cannot be upvote majority
+      if(leftvotes + upvotes > downvotes + remaining){
+        //LEFT
+        output.majority = 3;
+      }else if(downvotes > leftvotes + upvotes + remaining){
+        //DOWN
+        output.majority = 2;
+      }
+    }
+  }
+  
+  
+  return output;
+  
+}
+
+
+
+/**
+ * Given a list of users, return the corresponding player objects, and detect illegal votes
+ * @param {Collection<User>} reactionUsers A list of users who reacted to a proposition
+ * @param {int} proponentID The PID of the proponent
+ * @returns {Object} An object containing an array of players and a boolean for any illegal votes detected
+ */
+const getVotePlayers = (reactionUsers, proponentID) => {
+  
+  var output = {
+    players: [],
+    illegalVote: false
+  };
+  
+  if(reactionUsers == undefined){
+    return output;
+  }
+  
+  //Create a list of players who upvoted
+  for(var u = 0;u < reactionUsers.size;u ++){
+    
+    var playerID = identifyPlayer(reactionUsers.at(u).id);
+    
+    if(playerID == undefined){
+      
+      if(reactionUsers.at(u).id != SecureInfo.botID){
+        
+        //console.log("Unidentified player vote:",reactionUsers.at(u).username);
+        output.illegalVote = true;
+        
+      }
+      
+    }else{
+      
+      if(playerID == proponentID){
+        
+        //console.log("Proponent self-voted:",Players[proponentID].name);
+        output.illegalVote = true;
+        
+      }else{
+        
+        output.players.push(Players[playerID]);
+        
+      }
+      
+    }
+    
   }
   
   return output;

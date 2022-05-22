@@ -3,7 +3,7 @@
  * 
  * @author Anthony Wilson
  * 
- * @version 3.0.1
+ * @version 3.1.0
  * 
  * @since 2021-8-7
  */

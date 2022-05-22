@@ -300,11 +300,19 @@ exports.votes = async (event, args, eventtype) => {
   //Create a list of names of players who up/downvoted
   var upvoteList = [];
   var downvoteList = [];
+  var leftvoteList = [];
+  var rightvoteList = [];
   for(var p = 0;p < voteStatus.upvotes.length;p ++){
     upvoteList.push(voteStatus.upvotes[p].name);
   }
   for(var p = 0;p < voteStatus.downvotes.length;p ++){
     downvoteList.push(voteStatus.downvotes[p].name);
+  }
+  for(var p = 0;p < voteStatus.leftvotes.length;p ++){
+    leftvoteList.push(voteStatus.leftvotes[p].name);
+  }
+  for(var p = 0;p < voteStatus.rightvotes.length;p ++){
+    rightvoteList.push(voteStatus.rightvotes[p].name);
   }
   
   //Create the reply as an embed
@@ -315,7 +323,7 @@ exports.votes = async (event, args, eventtype) => {
   //Add a field describing the type of majority (if applicable)
   switch(voteStatus.majority){
     case -1:
-      reply.addField("Not yet majority",voteStatus.remaining+" votes remaining");
+      reply.addField("Not yet majority",voteStatus.remaining.length+" votes remaining");
       break;
     case 0:
       reply.addField("Tie","The proposition has not passed");
@@ -325,10 +333,15 @@ exports.votes = async (event, args, eventtype) => {
       break;
     case 2:
       reply.addField("Downvote majority","The proposition has not passed");
+      break;
+    case 3:
+      reply.addField("Leftvote majority","The proposition must be re-proposed");
   }
   
-  reply.addField("Upvotes:", upvoteList.join("\n"));
-  reply.addField("Downvotes:", downvoteList.join("\n"));
+  reply.addField("Upvotes:", upvoteList.length > 0 ? upvoteList.join("\n") : "None");
+  reply.addField("Downvotes:", downvoteList.length > 0 ? downvoteList.join("\n") : "None");
+  reply.addField("Leftvotes:", leftvoteList.length > 0 ? leftvoteList.join("\n") : "None");
+  reply.addField("Rightvotes:", rightvoteList.length > 0 ? rightvoteList.join("\n") : "None");
   
   if(voteStatus.illegalVote){
     reply.addField("Warning","Illegal vote(s) detected");

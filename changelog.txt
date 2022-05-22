@@ -24,3 +24,9 @@
   [2022-5-21 - 2022-5-22]
   Nomic Bot will now only announce a majority once (added a "majority" attribute to each entry in propositions.json).
   Cleaned up the code a bit, and added some more descriptive comments.
+
+3.1.0
+  [2022-5-22 - 2022-5-22]
+  Added leftvote & rightvote support.
+  getVoteStatus() now properly returns an array of players yet to vote.
+  Nomic Bot will automatically mention the "Proposition Ping" role whenever a proposition is created.
