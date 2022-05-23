@@ -107,7 +107,7 @@ exports.handleVote = async (reaction) => {
         break;
       case 3:
         console.log("Proposition reached leftvote majority!");
-        majorityAnnouncementChannel.send("<@"+reaction.message.author.id+">'s proposition has not passed");
+        majorityAnnouncementChannel.send("<@"+reaction.message.author.id+">'s proposition has reached leftvote majority, and must be re-proposed");
         Propositions[prop].majority = true;
     }
     
