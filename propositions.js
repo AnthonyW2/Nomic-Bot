@@ -274,6 +274,7 @@ exports.getVoteStatus = async (message) => {
     }else if(downvotes > upvotes){
       if(leftvotes + upvotes > downvotes){
         //LEFT
+        output.majority = 3;
       }else if(downvotes >= leftvotes + upvotes){
         //DOWN
         output.majority = 2;
@@ -302,6 +303,12 @@ exports.getVoteStatus = async (message) => {
       }
     }
   }
+  
+  console.log("Majority check 1:",output.majority);
+  
+  output.majority = checkMajority(output.upvotes.length, output.downvotes.length, output.leftvotes.length, output.remaining.length);
+  
+  console.log("Majority check 2:",output.majority);
   
   
   return output;
@@ -359,5 +366,77 @@ const getVotePlayers = (reactionUsers, proponentID) => {
   }
   
   return output;
+  
+}
+
+
+
+/**
+ * Given the amounts of votes on a proposition, return the type of majority reached (if applicable)
+ * @param {int} upvotes Amount of upvotes
+ * @param {int} downvotes Amount of downvotes
+ * @param {int} leftvotes Amount of leftvotes
+ * @param {int} remaining Amount of players who have not voted yet
+ * @returns {int} Majority indicator:
+ * * -1 = Not yet majority
+ * * 0 = Tie
+ * * 1 = Upvote majority
+ * * 2 = Downvote majority
+ * * 3 = Leftvote majority
+ */
+const checkMajority = (upvotes, downvotes, leftvotes, remaining) => {
+  
+  if(remaining == 0){
+    //If there are no votes remaining a majority must be reached
+    if(upvotes == downvotes){
+      if(leftvotes == 0){
+        //TIE
+        return 0;
+      }else if(leftvotes > 0){
+        //LEFT
+        return 3;
+      }
+    }else if(upvotes > downvotes){
+      if(leftvotes >= upvotes){
+        //LEFT
+        return 3;
+      }else if(upvotes > leftvotes){
+        //UP
+        return 1;
+      }
+    }else if(downvotes > upvotes){
+      if(leftvotes + upvotes > downvotes){
+        //LEFT
+        return 3;
+      }else if(downvotes >= leftvotes + upvotes){
+        //DOWN
+        return 2;
+      }
+    }
+    
+  }else{
+    //If there are votes remaining a majority may or may not be reached
+    if(leftvotes > downvotes + remaining || upvotes > downvotes + remaining){
+      //Cannot be downvote majority
+      if(leftvotes >= upvotes + remaining){
+        //LEFT
+        return 3;
+      }else if(upvotes > leftvotes + remaining){
+        //UP
+        return 1;
+      }
+    }else if(leftvotes > upvotes + remaining || downvotes > upvotes + remaining){
+      //Cannot be upvote majority
+      if(leftvotes + upvotes > downvotes + remaining){
+        //LEFT
+        return 3;
+      }else if(downvotes > leftvotes + upvotes + remaining){
+        //DOWN
+        return 2;
+      }
+    }
+  }
+  
+  return -1;
   
 }
