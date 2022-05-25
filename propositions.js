@@ -52,7 +52,7 @@ exports.createProposition = async (message) => {
   
   logMessage("New proposition created");
   
-  await client.channels.cache.get(SecureInfo.channels[2].ID).send("<@&977412127121879100> "+Players[proponent].name+" has made a proposition");
+  await client.channels.cache.get(SecureInfo.channels[2].ID).send("<@&977412127121879100> "+Players[proponent].name+" has made a proposition.\n"+message.url);
   
 }
 
@@ -87,27 +87,27 @@ exports.handleVote = async (reaction) => {
   //Only announce a majority if it has not already been announced
   if(!Propositions[prop].majority){
     
-    var majorityAnnouncementChannel = client.channels.cache.get(SecureInfo.channels[4].ID);
+    var majorityAnnouncementChannel = client.channels.cache.get(SecureInfo.channels[2].ID);
     
     switch(voteStatus.majority){
       case 0:
-        console.log("Proposition has tied!");
-        majorityAnnouncementChannel.send("<@"+reaction.message.author.id+">'s proposition has tied, so it has not passed");
+        console.log("Proposition has tied");
+        majorityAnnouncementChannel.send("<@"+reaction.message.author.id+">'s proposition has tied, so it has not passed.\n"+reaction.message.url);
         Propositions[prop].majority = true;
         break;
       case 1:
-        console.log("Proposition reached upvote majority!");
-        majorityAnnouncementChannel.send("<@"+reaction.message.author.id+">'s proposition has passed");
+        console.log("Proposition reached upvote majority");
+        majorityAnnouncementChannel.send("<@"+reaction.message.author.id+">'s proposition has passed, and must be added to the rule tree.\n"+reaction.message.url);
         Propositions[prop].majority = true;
         break;
       case 2:
-        console.log("Proposition reached downvote majority!");
-        majorityAnnouncementChannel.send("<@"+reaction.message.author.id+">'s proposition has not passed");
+        console.log("Proposition reached downvote majority");
+        majorityAnnouncementChannel.send("<@"+reaction.message.author.id+">'s proposition has reached downvote majority, so it has not passed.\n"+reaction.message.url);
         Propositions[prop].majority = true;
         break;
       case 3:
-        console.log("Proposition reached leftvote majority!");
-        majorityAnnouncementChannel.send("<@"+reaction.message.author.id+">'s proposition has reached leftvote majority, and must be re-proposed");
+        console.log("Proposition reached leftvote majority");
+        majorityAnnouncementChannel.send("<@"+reaction.message.author.id+">'s proposition has reached leftvote majority, and must be re-proposed within 72 hours.\n"+reaction.message.url);
         Propositions[prop].majority = true;
     }
     
@@ -248,67 +248,7 @@ exports.getVoteStatus = async (message) => {
   }
   
   
-  var upvotes = output.upvotes.length;
-  var downvotes = output.downvotes.length;
-  var leftvotes = output.leftvotes.length;
-  var remaining = output.remaining.length;
-  
-  if(remaining == 0){
-    //If there are no votes remaining a majority must be reached
-    if(upvotes == downvotes){
-      if(leftvotes == 0){
-        //TIE
-        output.majority = 0;
-      }else if(leftvotes > 0){
-        //LEFT
-        output.majority = 3;
-      }
-    }else if(upvotes > downvotes){
-      if(leftvotes >= upvotes){
-        //LEFT
-        output.majority = 3;
-      }else if(upvotes > leftvotes){
-        //UP
-        output.majority = 1;
-      }
-    }else if(downvotes > upvotes){
-      if(leftvotes + upvotes > downvotes){
-        //LEFT
-        output.majority = 3;
-      }else if(downvotes >= leftvotes + upvotes){
-        //DOWN
-        output.majority = 2;
-      }
-    }
-    
-  }else{
-    //If there are votes remaining a majority may or may not be reached
-    if(leftvotes > downvotes + remaining || upvotes > downvotes + remaining){
-      //Cannot be downvote majority
-      if(leftvotes >= upvotes + remaining){
-        //LEFT
-        output.majority = 3;
-      }else if(upvotes > leftvotes + remaining){
-        //UP
-        output.majority = 1;
-      }
-    }else if(leftvotes > upvotes + remaining || downvotes > upvotes + remaining){
-      //Cannot be upvote majority
-      if(leftvotes + upvotes > downvotes + remaining){
-        //LEFT
-        output.majority = 3;
-      }else if(downvotes > leftvotes + upvotes + remaining){
-        //DOWN
-        output.majority = 2;
-      }
-    }
-  }
-  
-  console.log("Majority check 1:",output.majority);
-  
-  output.majority = checkMajority(output.upvotes.length, output.downvotes.length, output.leftvotes.length, output.remaining.length);
-  
-  console.log("Majority check 2:",output.majority);
+  output.majority = exports.checkMajority(output.upvotes.length, output.downvotes.length, output.leftvotes.length, output.remaining.length);
   
   
   return output;
@@ -384,7 +324,7 @@ const getVotePlayers = (reactionUsers, proponentID) => {
  * * 2 = Downvote majority
  * * 3 = Leftvote majority
  */
-const checkMajority = (upvotes, downvotes, leftvotes, remaining) => {
+exports.checkMajority = (upvotes, downvotes, leftvotes, remaining) => {
   
   if(remaining == 0){
     //If there are no votes remaining a majority must be reached

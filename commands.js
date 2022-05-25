@@ -281,7 +281,7 @@ exports.players = async (event, args, eventtype) => {
  * @command Return a summary of the current voting status.
  * @param {} event The event (message or interaction) that called this command
  * @param {[string]} args Array of arguments to the command
- *   @argument message The ID of the proposition message
+ * * @argument message The ID of the proposition message
  * @param {string} eventtype "message" or "interaction"
  */
 exports.votes = async (event, args, eventtype) => {
@@ -675,11 +675,16 @@ exports.git = async (event, args, eventtype) => {
       
       break;
     case "pull":
-      
+      console.log("Awaiting implementation");
       break;
     case "push":
       
-      Git.push("Synced changes",(output) => {
+      var commitMsg = "Synced changes";
+      if(args.length > 2){
+        commitMsg = args.slice(2).join(" ");
+      }
+      
+      Git.push(commitMsg, (output) => {
         exports.respond(event, eventtype, "```"+output.stdout+"```");
       });
       
@@ -688,6 +693,80 @@ exports.git = async (event, args, eventtype) => {
       console.log("Awaiting implementation");
       break;
   }
+  
+}
+
+
+
+/**
+ * @async
+ * @command Get information about a Discord message.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {[string]} args Array of arguments to the command
+ * * @argument message The ID of the Discord message to get information about
+ * * @argument channel The Discord ID or NAS internal ID of the Discord channel which the message is within
+ * @param {string} eventtype "message" or "interaction"
+ */
+exports.msginfo = async (event, args, eventtype) => {
+  
+  if(args.length < 3){
+    await exports.respond(event, eventtype, "ERROR: Please ensure that you supply the message ID and channel ID. For more information:\n<"+Config.siteURL+"/docs.html#nomic-bot-commands-msginfo>");
+    return;
+  }
+  
+  //Get the channel
+  var channel;
+  if(args[2].length > 2){
+    channel = client.channels.cache.get(args[2]);
+  }else{
+    var channelID = SecureInfo.channels[ parseInt(args[2],10) ]?.ID;
+    if(channelID == undefined){
+      await exports.respond(event, eventtype, "ERROR: Channel not found. Please ensure you supplied a valid channel ID.");
+      return;
+    }
+    channel = client.channels.cache.get(channelID);
+  }
+  
+  //Report an error if the channel was not found
+  if(typeof(channel) != "object"){
+    await exports.respond(event, eventtype, "ERROR: Channel not found. Please ensure you supplied a valid channel ID.");
+    return;
+  }
+  
+  //Get the message
+  var message;
+  await channel.messages.fetch(args[1]).then((msg) => {
+    message = msg;
+  }).catch((err) => {
+    console.log("Error finding message");
+  });
+  
+  //Report an error if the message was not found
+  if(typeof(message) != "object"){
+    await exports.respond(event, eventtype, "ERROR: Message not found. Please ensure you supplied the correct channel ID and a valid message ID.");
+    return;
+  }
+  
+  
+  //Create the reply as an embed
+  var reply = new MessageEmbed();
+  
+  reply.setDescription("Information about message with ID "+args[1]);
+  
+  var createdTSRounded = Math.round(message.createdTimestamp/1000).toString();
+  var editedTSRounded = Math.round(message.editedTimestamp/1000).toString();
+  var createdTS = (message.createdTimestamp/1000).toString();
+  var editedTS = (message.editedTimestamp/1000).toString();
+  
+  reply.addField("Timestamp", createdTS + " (<t:"+createdTSRounded+">)");
+  reply.addField("Author", "<@"+message.author.id+">");
+  if(message.editedTimestamp != null){
+    reply.addField("Edited Timestamp", editedTS + " (<t:"+editedTSRounded+">)");
+  }
+  reply.addField("URL", message.url);
+  //reply.setURL(message.url); //I don't know what this does, but it doesn't appear to change anything for regular users
+  
+  await exports.respond(event, eventtype, {embeds: [reply]});
   
 }
 
@@ -770,6 +849,25 @@ exports.list = [
       {
         name: "command",
         description: "The git command to run [status/sync/push/pull]"
+      },
+      {
+        name: "parameters",
+        description: "Other (optional) parameters to supply to the specified git command."
+      }
+    ]
+  },
+  {
+    name: "msginfo",
+    description: "Get information about a message",
+    func: exports.msginfo,
+    options: [
+      {
+        name: "message",
+        description: "ID of the target message"
+      },
+      {
+        name: "channel",
+        description: "Number or ID of the channel the message is in"
       }
     ]
   }

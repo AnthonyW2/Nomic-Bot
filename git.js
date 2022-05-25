@@ -34,6 +34,7 @@ exports.pull = async (callback) => {
 /**
  * @async
  * Pushes changes in the local copy of the "Nomic" website repo to the remote repo.
+ * @param {string} message The commit message to use
  * @param {Function} callback Called when the git command finishes execution
  */
 exports.push = async (message, callback) => {
