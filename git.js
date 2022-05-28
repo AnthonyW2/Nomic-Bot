@@ -39,7 +39,7 @@ exports.pull = async (callback) => {
  */
 exports.push = async (message, callback) => {
   
-  exec("./git-push-site " + SecureInfo.gitToken + " " + "'"+message+"'", (error, stdout, stderr) => {
+  exec("./git-push-site " + SecureInfo.gitToken + " " + '"'+message.replaceAll('"','\\"')+'"', (error, stdout, stderr) => {
     
     callback({
       error: error,

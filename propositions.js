@@ -155,6 +155,7 @@ exports.getVoteStatus = async (message) => {
    * @property {[Player]} leftvotes Array of players who leftvoted
    * @property {[Player]} rightvotes Array of players who rightvoted
    * @property {[Player]} remaining Array of players who are yet to vote
+   * @property {boolean} illegalVote Whether or not a user has voted on the proposition in a way which violates the rules
    */
   var output = {
     majority: -1,

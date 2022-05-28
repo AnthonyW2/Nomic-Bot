@@ -48,3 +48,7 @@
   Added a command to get the information about a Discord message.
   Nomic Bot now links to proposition messages when announcing a new proposition or a majority.
   Git push command now accepts a commit message.
+
+3.1.5
+  [2022-5-26 - 2022-5-26]
+  Quotes in commit messages are now automatically escaped.

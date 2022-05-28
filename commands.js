@@ -686,6 +686,7 @@ exports.git = async (event, args, eventtype) => {
       
       Git.push(commitMsg, (output) => {
         exports.respond(event, eventtype, "```"+output.stdout+"```");
+        console.log(output.stderr);
       });
       
       break;
