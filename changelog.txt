@@ -52,3 +52,18 @@
 3.1.5
   [2022-5-26 - 2022-5-26]
   Quotes in commit messages are now automatically escaped.
+
+3.2.0
+  [2022-5-28 - 2022-5-29]
+  Nomic Bot now supports players exiting the game, and will track votes accordingly.
+  Propositions now store arrays of players who have voted rather than amounts of votes.
+  Added a utility function to get a list of attributes given a list of objects.
+  The votes command now updates the stored proposition data if necessary.
+  The players command now shows inactive players.
+  Stored propositions are now used more throughout the code.
+  Added support for inactive players.
+  If a proposition is older than 72 hours, it will be reported as having reached majority.
+  The "majority" state of a stored proposition can now be updated even if the votes do not change.
+  The votes command now has an option to list the players yet to vote.
+  Added "authentication" to the git command(s) - only the maintainer of the NAS may use them.
+  The votes command now properly handles an invalid message ID.

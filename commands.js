@@ -249,7 +249,9 @@ exports.players = async (event, args, eventtype) => {
   /*
   for(var p = 0;p < Players.length;p ++){
     
-    playerList += "\n" + (p+1) + " - " + Players[p].name + " (<@" + SecureInfo.players[p].ID + ">)";
+    if(Players[p].playing){
+      playerList += "\n" + (p+1) + " - " + Players[p].name + " (<@" + SecureInfo.players[p].ID + ">)";
+    }
     
   }
   */
@@ -258,9 +260,13 @@ exports.players = async (event, args, eventtype) => {
   for(var t = 0;t < Players.length;t ++){
     
     for(var p = 0;p < Players.length;p ++){
-      if(Players[p].turn == t){
+      if(Players[p].turn == t && Players[p].playing){
         
         playerList += "\n" + (t+1) + " - " + Players[p].name + " (<@" + SecureInfo.players[p].ID + ">)";
+        
+        if(!Players[p].active){
+          playerList += " (:zzz:)";
+        }
         
       }
     }
@@ -286,39 +292,49 @@ exports.players = async (event, args, eventtype) => {
  */
 exports.votes = async (event, args, eventtype) => {
   
-  //To do:
-  //Get a list of ongoing propositions if no ID is given
+  ///To do:
+  ///Get a list of ongoing propositions if no ID is given
   
   var propositionsChannel = client.channels.cache.get(SecureInfo.channels[1].ID);
   
   //Get the message with the given ID
-  var proposition = await propositionsChannel.messages.fetch(args[1]);
+  var propositionMsg;
+  await propositionsChannel.messages.fetch(args[1]).then((msg) => {
+    propositionMsg = msg;
+  }).catch((err) => {
+    console.log("Error finding proposition");
+  });
+  
+  //Report an error if the message was not found
+  if(typeof(propositionMsg) != "object"){
+    exports.respond(event, eventtype, "Error: Unable to identify proposition. The message ID may be incorrect.");
+    return;
+  }
+  
+  //The the ID of the matching stored proposition
+  var propositionID = PropositionFunctions.matchProposition(propositionMsg);
+  
+  //Report an error if a matching stored proposition was not found
+  if(propositionID == -1){
+    exports.respond(event, eventtype, "Error: Unable to match a stored proposition.");
+    logMessage("ERROR: Matching proposition not found");
+    return;
+  }
+  
   
   //Get the vote status using functionality from propositions.js
-  var voteStatus = await PropositionFunctions.getVoteStatus(proposition);
+  var voteStatus = await PropositionFunctions.getVoteStatus(propositionMsg, propositionID);
   
-  //Create a list of names of players who up/downvoted
-  var upvoteList = [];
-  var downvoteList = [];
-  var leftvoteList = [];
-  var rightvoteList = [];
-  for(var p = 0;p < voteStatus.upvotes.length;p ++){
-    upvoteList.push(voteStatus.upvotes[p].name);
-  }
-  for(var p = 0;p < voteStatus.downvotes.length;p ++){
-    downvoteList.push(voteStatus.downvotes[p].name);
-  }
-  for(var p = 0;p < voteStatus.leftvotes.length;p ++){
-    leftvoteList.push(voteStatus.leftvotes[p].name);
-  }
-  for(var p = 0;p < voteStatus.rightvotes.length;p ++){
-    rightvoteList.push(voteStatus.rightvotes[p].name);
-  }
+  //Create a list of names of players who voted each way
+  var upvoteList = getAttrList(voteStatus.upvotes,"name");
+  var downvoteList = getAttrList(voteStatus.downvotes,"name");
+  var leftvoteList = getAttrList(voteStatus.leftvotes,"name");
+  var rightvoteList = getAttrList(voteStatus.rightvotes,"name");
   
   //Create the reply as an embed
   var reply = new MessageEmbed();
   
-  reply.setDescription("Votes on <@"+proposition.author.id+">'s proposition");
+  reply.setDescription("Votes on <@"+propositionMsg.author.id+">'s proposition");
   
   //Add a field describing the type of majority (if applicable)
   switch(voteStatus.majority){
@@ -338,16 +354,27 @@ exports.votes = async (event, args, eventtype) => {
       reply.addField("Leftvote majority","The proposition must be re-proposed");
   }
   
-  reply.addField("Upvotes:", upvoteList.length > 0 ? upvoteList.join("\n") : "None");
-  reply.addField("Downvotes:", downvoteList.length > 0 ? downvoteList.join("\n") : "None");
-  reply.addField("Leftvotes:", leftvoteList.length > 0 ? leftvoteList.join("\n") : "None");
-  reply.addField("Rightvotes:", rightvoteList.length > 0 ? rightvoteList.join("\n") : "None");
+  if(args.length > 2){
+    if(args[2] == "remaining" || args[2] == "r"){
+      var remainingList = getAttrList(voteStatus.remaining,"name");
+      reply.addField("Remaining:", remainingList.length > 0 ? remainingList.join("\n") : "NA");
+    }
+  }
+  
+  reply.addField("Upvotes: "+upvoteList.length, upvoteList.length > 0 ? upvoteList.join("\n") : "NA");
+  reply.addField("Downvotes: "+downvoteList.length, downvoteList.length > 0 ? downvoteList.join("\n") : "NA");
+  reply.addField("Leftvotes: "+leftvoteList.length, leftvoteList.length > 0 ? leftvoteList.join("\n") : "NA");
+  reply.addField("Rightvotes: "+rightvoteList.length, rightvoteList.length > 0 ? rightvoteList.join("\n") : "NA");
   
   if(voteStatus.illegalVote){
     reply.addField("Warning","Illegal vote(s) detected");
   }
   
-  await exports.respond(event, eventtype, {embeds: [reply]});
+  exports.respond(event, eventtype, {embeds: [reply]});
+  
+  
+  //Update the stored proposition data
+  PropositionFunctions.updateProposition(propositionMsg, voteStatus);
   
 }
 
@@ -666,6 +693,12 @@ exports.randplayerlist = async (event, args, eventtype) => {
  */
 exports.git = async (event, args, eventtype) => {
   
+  //Only allow the system maintainer to use git commands (for now)
+  if(event.author.id != SecureInfo.players[0].ID){
+    exports.respond(event, eventtype, "You are not authorised to perform this action");
+    return;
+  }
+  
   switch(args[1]){
     case "status":
       
@@ -798,6 +831,10 @@ exports.list = [
       {
         name: "message",
         description: "ID of the proposition message"
+      },
+      {
+        name: "options",
+        description: "Control extra functionality"
       }
     ]
   },

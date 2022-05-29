@@ -32,7 +32,6 @@ exports.logMessage = async (message) => {
 
 
 /**
- * @async
  * Return the matching player ID given the Discord user ID
  * @param {string} id A Discord user ID
  * @returns {int} Player ID (PID)
@@ -54,7 +53,28 @@ exports.identifyPlayer = (id) => {
 
 
 /**
- * @async
+ * Return the matching player ID given the Discord user ID
+ * @param {Array} list An array of objects
+ * @param {String} attr A string specifying the name of the attribute
+ * @returns {Array} A array of attributes of the input object
+ */
+exports.getAttrList = (list, attr) => {
+  
+  var output = [];
+  
+  for(var a = 0;a < list.length;a ++){
+    
+    output.push(list[a][attr]);
+    
+  }
+  
+  return output;
+  
+}
+
+
+
+/**
  * Update a JSON file on the website
  * @param {string} file A Discord user ID
  * @returns {boolean} False if @param file does not match a known file to write to

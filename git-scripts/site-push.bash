@@ -5,7 +5,7 @@
 
 
 #Set a custom script for git to use when requesting the password
-export GIT_ASKPASS=$(pwd)/git-auth
+export GIT_ASKPASS=$(pwd)/git-scripts/git-auth.bash
 
 #Change the working directory of this script to the Nomic Site local git repo
 cd ../Site/Nomic

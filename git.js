@@ -19,7 +19,7 @@ const { exec } = require("child_process");
  */
 exports.pull = async (callback) => {
   
-  exec("./git-pull-site", (error, stdout, stderr) => {
+  exec("./git-scripts/site-pull.bash", (error, stdout, stderr) => {
     
     callback({
       error: error,
@@ -39,7 +39,7 @@ exports.pull = async (callback) => {
  */
 exports.push = async (message, callback) => {
   
-  exec("./git-push-site " + SecureInfo.gitToken + " " + '"'+message.replaceAll('"','\\"')+'"', (error, stdout, stderr) => {
+  exec("./git-scripts/site-push.bash " + SecureInfo.gitToken + " " + '"'+message.replaceAll('"','\\"')+'"', (error, stdout, stderr) => {
     
     callback({
       error: error,
@@ -70,7 +70,7 @@ exports.sync = async (callback) => {
  */
 exports.status = async (callback) => {
   
-  exec("./git-status-site", (error, stdout, stderr) => {
+  exec("./git-scripts/site-status.bash", (error, stdout, stderr) => {
     
     callback({
       error: error,

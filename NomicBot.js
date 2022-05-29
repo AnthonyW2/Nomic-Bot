@@ -3,7 +3,7 @@
  * 
  * @author Anthony Wilson
  * 
- * @version 3.1.5
+ * @version 3.2.0
  * 
  * @since 2021-8-7
  */
@@ -52,6 +52,7 @@ const Utils = require("./utils.js");
 global.logMessage = Utils.logMessage;
 global.identifyPlayer = Utils.identifyPlayer;
 global.updateFile = Utils.updateFile;
+global.getAttrList = Utils.getAttrList;
 
 //Command functions and commands list
 const Commands = require("./commands.js");
