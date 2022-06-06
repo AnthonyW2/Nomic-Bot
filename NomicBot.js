@@ -3,7 +3,7 @@
  * 
  * @author Anthony Wilson
  * 
- * @version 3.2.0
+ * @version 3.2.1
  * 
  * @since 2021-8-7
  */
@@ -85,27 +85,8 @@ client.on("ready", () => {
   console.log(`Connected to ${client.user.tag}`);
   
   
-  //Set presence
-  client.user.setPresence({
-    status: "online",
-    activities: [
-      { type: "PLAYING", name: "Nomic" },
-      ///{ type: "WATCHING", name: "your votes" },
-      ///{ type: "LISTENING", name: "the void" },
-    ]
-  });
-  
-  //Set a different presence if the bot is running in development mode
-  if(devmode){
-    client.user.setPresence({
-      status: "online",
-      activities: [
-        { type: "PLAYING", name: "Development" }
-      ]
-    });
-  }
-  
-  ///console.log("Set status");
+  //Set the status of the bot
+  setPresence();
   
   
   //Update the message in #links that links to the website
@@ -149,6 +130,9 @@ var updateServerURLMsg = async () => {
     
     message.edit(msg);
     
+    //Presumably the IP address of the bot has changed, so the presence of the bot must be reset
+    setPresence();
+    
     logMessage("Updated server URL message");
     
   }
@@ -157,6 +141,37 @@ var updateServerURLMsg = async () => {
   timers.setTimeout(() => {
     updateServerURLMsg();
   }, 1000*60*5);
+  
+}
+
+
+/**
+ * @async
+ * Update the status of the bot
+ * Initially called by @event ready and called again if the IP address of the server changes.
+ */
+var setPresence = async () => {
+  
+  //Set a different presence if the bot is running in development mode
+  if(devmode){
+    client.user.setPresence({
+      status: "online",
+      activities: [
+        { type: "PLAYING", name: "Development" }
+      ]
+    });
+    return;
+  }
+  
+  //Set default presence
+  client.user.setPresence({
+    status: "online",
+    activities: [
+      { type: "PLAYING", name: "Nomic" },
+      ///{ type: "WATCHING", name: "your votes" },
+      ///{ type: "LISTENING", name: "the void" },
+    ]
+  });
   
 }
 

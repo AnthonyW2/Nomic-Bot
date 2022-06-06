@@ -67,3 +67,16 @@
   The votes command now has an option to list the players yet to vote.
   Added "authentication" to the git command(s) - only the maintainer of the NAS may use them.
   The votes command now properly handles an invalid message ID.
+
+3.2.1
+  [2022-5-31 - 2022-6-6]
+  Removed turns from anywhere they were previously used.
+  Added a command to generate random stats for a new mouse.
+  Votes are no longer updated after a proposition has reached a majority.
+  Inactive rightvotes are now only considered after a proposition has been active for 12 hours or more.
+
+3.2.2
+  [2022-6-6 - 2022-6-?]
+  Added a command to generate a new tile in the World.
+  Added a command to manually add a new proposition to storage in case the bot failed to do so (or was not running when the proposition was created).
+  All Season 3 players are now pinged when a proposition is made, and the Proposition Ping role is mentioned whenever a majority of votes is reached.

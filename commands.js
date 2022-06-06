@@ -246,32 +246,36 @@ exports.players = async (event, args, eventtype) => {
   var playerList = "";
   
   //Print players in order of PID
-  /*
   for(var p = 0;p < Players.length;p ++){
     
     if(Players[p].playing){
+      
       playerList += "\n" + (p+1) + " - " + Players[p].name + " (<@" + SecureInfo.players[p].ID + ">)";
-    }
-    
-  }
-  */
-  
-  //Print players in turn order
-  for(var t = 0;t < Players.length;t ++){
-    
-    for(var p = 0;p < Players.length;p ++){
-      if(Players[p].turn == t && Players[p].playing){
-        
-        playerList += "\n" + (t+1) + " - " + Players[p].name + " (<@" + SecureInfo.players[p].ID + ">)";
-        
-        if(!Players[p].active){
-          playerList += " (:zzz:)";
-        }
-        
+      
+      if(!Players[p].active){
+        playerList += " (:zzz:)";
       }
+      
     }
     
   }
+  
+  //Print players in turn order (no longer applicable)
+  //for(var t = 0;t < Players.length;t ++){
+  //  
+  //  for(var p = 0;p < Players.length;p ++){
+  //    if(Players[p].turn == t && Players[p].playing){
+  //      
+  //      playerList += "\n" + (t+1) + " - " + Players[p].name + " (<@" + SecureInfo.players[p].ID + ">)";
+  //      
+  //      if(!Players[p].active){
+  //        playerList += " (:zzz:)";
+  //      }
+  //      
+  //    }
+  //  }
+  //  
+  //}
   
   var reply = new MessageEmbed();
   reply.addField("Players:", playerList);
@@ -686,6 +690,62 @@ exports.randplayerlist = async (event, args, eventtype) => {
 
 /**
  * @async
+ * @command Manually add a new proposition to storage.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {[string]} args Array of arguments to the command
+ * * @argument message The ID of the proposition message
+ * @param {string} eventtype "message" or "interaction"
+ */
+exports.addprop = async (event, args, eventtype) => {
+  
+  await exports.respond(event, eventtype, "Awaiting implementation");
+  
+}
+
+
+
+/**
+ * @async
+ * @command Move a player in the World.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {[string]} args Array of arguments to the command
+ * * @argument direction The direction to move.
+ * @param {string} eventtype "message" or "interaction"
+ */
+exports.move = async (event, args, eventtype) => {
+  
+  await exports.respond(event, eventtype, "Awaiting implementation");
+  
+}
+
+
+
+/**
+ * @async
+ * @command Randomly generate the stats for a mouse.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {[string]} args Array of arguments to the command
+ * @param {string} eventtype "message" or "interaction"
+ */
+exports.newmouse = async (event, args, eventtype) => {
+  
+  var stats = "Energy: 1";
+  stats += "\nMischief: " + Math.floor(Math.random() * 2 + 1).toString();
+  stats += "\nWits: " + Math.floor(Math.random() * 2 + 1).toString();
+  stats += "\nPower: " + (Math.floor(Math.random() * 3) + Math.floor(Math.random() * 3) + 2).toString();
+  stats += "\nCuriosity: " + Math.floor(Math.random() * 4 + 1).toString();
+  
+  var reply = new MessageEmbed();
+  reply.addField("Statistics:", stats);
+  
+  await exports.respond(event, eventtype, {embeds: [reply]});
+  
+}
+
+
+
+/**
+ * @async
  * @command Return the player list in a random order.
  * @param {} event The event (message or interaction) that called this command
  * @param {[string]} args Array of arguments to the command
@@ -878,6 +938,33 @@ exports.list = [
     name: "randplayerlist",
     description: "Return the list of players in a random order",
     func: exports.randplayerlist
+  },
+  {
+    name: "addprop",
+    description: "Add a new proposition to storage",
+    func: exports.addprop,
+    options: [
+      {
+        name: "message",
+        description: "ID of the proposition message"
+      }
+    ]
+  },
+  {
+    name: "move",
+    description: "Move a player in the World",
+    func: exports.move,
+    options: [
+      {
+        name: "direction",
+        description: "The direction the player wishes to move"
+      }
+    ]
+  },
+  {
+    name: "newmouse",
+    description: "Randomly generate the stats for a new mouse",
+    func: exports.newmouse
   },
   {
     name: "git",

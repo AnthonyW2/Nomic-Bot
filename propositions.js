@@ -43,7 +43,8 @@ exports.createProposition = async (message) => {
     timestamp: Math.round(message.createdTimestamp/1000),
     messageID: message.id,
     votes: [[],[],[],[]],
-    majority: false
+    majority: false,
+    link: message.url
   });
   
   //Update propositions.json
@@ -158,6 +159,11 @@ exports.updateProposition = async (proposition, votes) => {
   var leftvotes = getAttrList(voteStatus.leftvotes,"PID");
   var rightvotes = getAttrList(voteStatus.rightvotes,"PID");
   
+  //Don't update the file anymore if majority has already been reached.
+  if(Propositions[prop].majority){
+    return;
+  }
+  
   //Only modify Propositions if the vote amounts are different
   if(
     Propositions[prop].votes[0].length != upvotes.length ||
@@ -261,15 +267,28 @@ exports.getVoteStatus = async (message, propositionID) => {
   for(var p = 0;p < output.leftvotes.length;p ++){
     votedPlayers[output.leftvotes[p].PID] ++;
   }
-  //Add rightvotes for inactive players
+  //Add rightvotes for past players
   for(var p = 0;p < Players.length;p ++){
-    if(!Players[p].active && votedPlayers[p] == 0){
+    if(!Players[p].playing){
       output.rightvotes.push(Players[p]);
+      votedPlayers[p] ++;
+    }
+  }
+  //Check if the proposition is more than 12 hours old
+  if(Math.round((new Date()).getTime()/1000) > Propositions[propositionID].timestamp+12*60*60){
+    //Add rightvotes for inactive players
+    for(var p = 0;p < Players.length;p ++){
+      if(!Players[p].active && votedPlayers[p] == 0){
+        output.rightvotes.push(Players[p]);
+      }
     }
   }
   //Check rightvotes
   for(var p = 0;p < output.rightvotes.length;p ++){
     votedPlayers[output.rightvotes[p].PID] ++;
+    if(!output.rightvotes[p].playing){
+      votedPlayers[output.rightvotes[p].PID] = 1;
+    }
   }
   for(var p = 0;p < votedPlayers.length;p ++){
     
