@@ -76,7 +76,8 @@
   Inactive rightvotes are now only considered after a proposition has been active for 12 hours or more.
 
 3.2.2
-  [2022-6-6 - 2022-6-?]
-  Added a command to generate a new tile in the World.
+  [2022-6-6 - 2022-6-15]
+  Added basic support for Judge suggestions (clarifications).
   Added a command to manually add a new proposition to storage in case the bot failed to do so (or was not running when the proposition was created).
-  All Season 3 players are now pinged when a proposition is made, and the Proposition Ping role is mentioned whenever a majority of votes is reached.
+  Added basic support for multi-message propositions.
+  Bot automatically reaction to propositions that have reached a majority with a checkmark emote.

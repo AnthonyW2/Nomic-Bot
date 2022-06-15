@@ -338,7 +338,7 @@ exports.votes = async (event, args, eventtype) => {
   //Create the reply as an embed
   var reply = new MessageEmbed();
   
-  reply.setDescription("Votes on <@"+propositionMsg.author.id+">'s proposition");
+  reply.setDescription("Votes on <@"+propositionMsg.author.id+">'s " + (Propositions[propositionID].judgesuggestion ? "suggestion" : "proposition"));
   
   //Add a field describing the type of majority (if applicable)
   switch(voteStatus.majority){
@@ -367,8 +367,10 @@ exports.votes = async (event, args, eventtype) => {
   
   reply.addField("Upvotes: "+upvoteList.length, upvoteList.length > 0 ? upvoteList.join("\n") : "NA");
   reply.addField("Downvotes: "+downvoteList.length, downvoteList.length > 0 ? downvoteList.join("\n") : "NA");
-  reply.addField("Leftvotes: "+leftvoteList.length, leftvoteList.length > 0 ? leftvoteList.join("\n") : "NA");
-  reply.addField("Rightvotes: "+rightvoteList.length, rightvoteList.length > 0 ? rightvoteList.join("\n") : "NA");
+  if(!Propositions[propositionID].judgesuggestion){
+    reply.addField("Leftvotes: "+leftvoteList.length, leftvoteList.length > 0 ? leftvoteList.join("\n") : "NA");
+    reply.addField("Rightvotes: "+rightvoteList.length, rightvoteList.length > 0 ? rightvoteList.join("\n") : "NA");
+  }
   
   if(voteStatus.illegalVote){
     reply.addField("Warning","Illegal vote(s) detected");
@@ -698,7 +700,32 @@ exports.randplayerlist = async (event, args, eventtype) => {
  */
 exports.addprop = async (event, args, eventtype) => {
   
-  await exports.respond(event, eventtype, "Awaiting implementation");
+  var propositionsChannel = client.channels.cache.get(SecureInfo.channels[1].ID);
+  
+  //Get the message with the given ID
+  var propositionMsg;
+  await propositionsChannel.messages.fetch(args[1]).then((msg) => {
+    propositionMsg = msg;
+  }).catch((err) => {
+    console.log("Error finding proposition");
+  });
+  
+  //Report an error if the message was not found
+  if(typeof(propositionMsg) != "object"){
+    exports.respond(event, eventtype, "Error: Unable to identify proposition. The message ID may be incorrect.");
+    return;
+  }
+  
+  //The the ID of the matching stored proposition
+  var propositionID = PropositionFunctions.matchProposition(propositionMsg);
+  
+  //Report an error if a matching stored proposition was found
+  if(propositionID != -1){
+    exports.respond(event, eventtype, "Error: Proposition already exists.");
+    return;
+  }
+  
+  PropositionFunctions.createProposition(propositionMsg);
   
 }
 

@@ -36,6 +36,37 @@ exports.createProposition = async (message) => {
   
   var proponent = identifyPlayer(message.author.id);
   
+  //Check if the player already has an active proposition
+  for(var p = Propositions.length-1;p >= 0;p --){
+    if(Propositions[p].author == proponent){
+      if(!Propositions[p].majority){
+        if(p == Propositions.length-1){
+          
+          //Instead of adding a seperate proposition, add the second message to the proposition object (making it a "multi-message proposition")
+          if(Propositions[p].multimessage){
+            Propositions[p].messages.push(message.id);
+          }else{
+            Propositions[p].multimessage = true;
+            Propositions[p].messages = [Propositions[p].messageID, message.id];
+          }
+          Propositions[p].messageID = message.id; //Use the ID of the last message sent
+          Propositions[p].content += "\n\n" + message.content;
+          
+          updateFile("propositions");
+          
+          logMessage("Appended message to multi-message proposition.");
+          
+          return;
+          
+        }else{
+          logMessage("WARNING: "+Players[proponent]+" may have illegally proposed.");
+        }
+      }else{
+        p = -1;
+      }
+    }
+  }
+  
   //Add the proposition to the list
   Propositions.push({
     author: proponent,
@@ -46,6 +77,10 @@ exports.createProposition = async (message) => {
     majority: false,
     link: message.url
   });
+  
+  if(message.content.split("\n")[0].toLowerCase().includes("judge")){
+    Propositions[Propositions.length-1].judgesuggestion = true;
+  }
   
   //Update propositions.json
   updateFile("propositions");
@@ -164,6 +199,10 @@ exports.updateProposition = async (proposition, votes) => {
     return;
   }
   
+  if(reachedMajority){
+    message.react("✅");
+  }
+  
   //Only modify Propositions if the vote amounts are different
   if(
     Propositions[prop].votes[0].length != upvotes.length ||
@@ -275,7 +314,7 @@ exports.getVoteStatus = async (message, propositionID) => {
     }
   }
   //Check if the proposition is more than 12 hours old
-  if(Math.round((new Date()).getTime()/1000) > Propositions[propositionID].timestamp+12*60*60){
+  if(Math.round((new Date()).getTime()/1000) > Propositions[propositionID].timestamp+12*60*60 && !Propositions[propositionID].judgesuggestion){
     //Add rightvotes for inactive players
     for(var p = 0;p < Players.length;p ++){
       if(!Players[p].active && votedPlayers[p] == 0){
@@ -315,7 +354,7 @@ exports.getVoteStatus = async (message, propositionID) => {
   
   //Sanity check
   var totalVotes = output.upvotes.length + output.downvotes.length + output.leftvotes.length + output.rightvotes.length;
-  if(totalVotes + output.remaining.length != Players.length-1){
+  if(totalVotes + output.remaining.length != Players.length-(Propositions[propositionID].judgesuggestion ? 0 : 1)){
     logMessage("**Warning**: Total votes + remaining votes does not equal the total amount of possible votes");
     return output;
   }
@@ -380,7 +419,11 @@ const getVotePlayers = (reactionUsers, proponentID, propositionID) => {
         //Proponent voted on their own proposition
         
         //console.log("Proponent self-voted:",Players[proponentID].name);
-        output.illegalVote = true;
+        if(Propositions[propositionID].judgesuggestion){
+          output.players.push(Players[playerID]);
+        }else{
+          output.illegalVote = true;
+        }
         
       }else{
         
