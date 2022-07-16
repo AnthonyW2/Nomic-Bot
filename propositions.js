@@ -36,13 +36,13 @@ exports.createProposition = async (message) => {
   
   var proponent = identifyPlayer(message.author.id);
   
-  //Check if the player already has an active proposition
+  //Check if the proponent already has an active proposition
   for(var p = Propositions.length-1;p >= 0;p --){
     if(Propositions[p].author == proponent){
       if(!Propositions[p].majority){
         if(p == Propositions.length-1){
           
-          //Instead of adding a seperate proposition, add the second message to the proposition object (making it a "multi-message proposition")
+          //Instead of adding a separate proposition, add the second message to the proposition object (making it a "multi-message proposition")
           if(Propositions[p].multimessage){
             Propositions[p].messages.push(message.id);
           }else{
@@ -86,6 +86,9 @@ exports.createProposition = async (message) => {
   updateFile("propositions");
   
   logMessage("New proposition created");
+  
+  //Update the activity status of all players
+  exports.updateActivity();
   
   await client.channels.cache.get(SecureInfo.channels[2].ID).send("<@&977412127121879100> "+Players[proponent].name+" has made a proposition.\n"+message.url);
   
@@ -150,6 +153,10 @@ exports.updateProposition = async (proposition, votes) => {
     return;
   }
   
+  //Update the activity status of all players
+  //This function already takes a long time to run without this, so I have disabled it for now
+  //exports.updateActivity();
+  
   //Store the vote status
   var voteStatus;
   if(votes != undefined){
@@ -194,7 +201,13 @@ exports.updateProposition = async (proposition, votes) => {
   var leftvotes = getAttrList(voteStatus.leftvotes,"PID");
   var rightvotes = getAttrList(voteStatus.rightvotes,"PID");
   
-  //Don't update the file anymore if majority has already been reached.
+  if(!Propositions[prop].multimessage){
+    if(Propositions[prop].content != message.content){
+      logMessage("This proposition has been edited, and needs to be updated");
+    }
+  }
+  
+  //Stop here if majority has already been reached.
   if(Propositions[prop].majority){
     return;
   }
@@ -203,24 +216,22 @@ exports.updateProposition = async (proposition, votes) => {
     message.react("✅");
   }
   
-  //Only modify Propositions if the vote amounts are different
-  if(
-    Propositions[prop].votes[0].length != upvotes.length ||
-    Propositions[prop].votes[1].length != downvotes.length ||
-    Propositions[prop].votes[2].length != leftvotes.length ||
-    Propositions[prop].votes[3].length != rightvotes.length ||
-    Propositions[prop].majority != reachedMajority
-  ){
-    
-    Propositions[prop].votes[0] = JSON.parse(JSON.stringify(upvotes));
-    Propositions[prop].votes[1] = JSON.parse(JSON.stringify(downvotes));
-    Propositions[prop].votes[2] = JSON.parse(JSON.stringify(leftvotes));
-    Propositions[prop].votes[3] = JSON.parse(JSON.stringify(rightvotes));
-    Propositions[prop].majority = reachedMajority;
-    
-    updateFile("propositions");
-    
+  
+  //Update the votes
+  Propositions[prop].votes[0] = JSON.parse(JSON.stringify(upvotes));
+  Propositions[prop].votes[1] = JSON.parse(JSON.stringify(downvotes));
+  Propositions[prop].votes[2] = JSON.parse(JSON.stringify(leftvotes));
+  Propositions[prop].votes[3] = JSON.parse(JSON.stringify(rightvotes));
+  
+  //Update the content (only if it is a single-message proposition)
+  if(!Propositions[prop].multimessage){
+    Propositions[prop].content = message.content;
   }
+  
+  //Update the majority status of the proposition
+  Propositions[prop].majority = reachedMajority;
+  
+  updateFile("propositions");
   
 }
 
@@ -476,7 +487,7 @@ const getVotePlayers = (reactionUsers, proponentID, propositionID) => {
  * @param {int} remaining Amount of players who have not voted yet
  * @returns {int} Majority indicator:
  * * -1 = Not yet majority
- * * 0 = Tie
+ * * 0 = Tie (Deprecated)
  * * 1 = Upvote majority
  * * 2 = Downvote majority
  * * 3 = Leftvote majority
@@ -558,3 +569,48 @@ exports.matchProposition = (messageID) => {
   return -1;
   
 }
+
+
+
+/**
+ * Update the active players
+ */
+exports.updateActivity = () => {
+  
+  //Start with an array with one element per player
+  var active = [];
+  for(var p = 0;p < Players.length;p ++){
+    active[p] = false;
+  }
+  
+  //Loop through the most recent 5 propositions
+  for(var prop = 0;prop < 5;prop ++){
+    
+    var proposition = Propositions[Propositions.length - prop - 1];
+    
+    //Loop through the first 3 vote types 
+    for(var vt = 0;vt < 3;vt ++){
+      
+      for(var pl = 0;pl < proposition.votes[vt].length;pl ++){
+        active[proposition.votes[vt][pl]] = true;
+      }
+      
+    }
+    
+  }
+  
+  //Update the Players object
+  for(var p = 0;p < Players.length;p ++){
+    
+    if(Players[p].active != active[p]){
+      logMessage("Made "+Players[p].name+" "+(active[p] ? "" : "in")+"active");
+    }
+    
+    Players[p].active = active[p];
+    
+  }
+  
+  updateFile("players");
+  
+}
+

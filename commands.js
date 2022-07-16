@@ -245,6 +245,9 @@ exports.players = async (event, args, eventtype) => {
   
   var playerList = "";
   
+  //Update the activity status of all players
+  PropositionFunctions.updateActivity();
+  
   //Print players in order of PID
   for(var p = 0;p < Players.length;p ++){
     
@@ -292,6 +295,7 @@ exports.players = async (event, args, eventtype) => {
  * @param {} event The event (message or interaction) that called this command
  * @param {[string]} args Array of arguments to the command
  * * @argument message The ID of the proposition message
+ * * @argument options Control extra functionality
  * @param {string} eventtype "message" or "interaction"
  */
 exports.votes = async (event, args, eventtype) => {
@@ -388,12 +392,71 @@ exports.votes = async (event, args, eventtype) => {
 
 /**
  * @async
- * @command Generate a random number, or a set of random numbers.
+ * @command Generate a random number using an unpredictable method
  * @param {} event The event (message or interaction) that called this command
  * @param {[string]} args Array of arguments to the command
  * @param {string} eventtype "message" or "interaction"
  */
 exports.rand = async (event, args, eventtype) => {
+  
+  var lowerbound = 0;
+  var upperbound = 1;
+  
+  if(args.length == 1){
+    //If no arguments are given, return a random number in the interval [0,1)
+    
+    await exports.respond(event, eventtype, "Number between 0 and 1:\n"+rand().toString());
+    return;
+    
+  }else if(args.length == 2){
+    //Return a random integer between 0 and the only argument, inclusive
+    
+    //Exit with an error message if the given argument is not a number
+    if(isNaN(args[1])){
+      await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args[1]+"` is not a number");
+      return;
+    }
+    
+    upperbound = parseInt(args[1].replace(".",""), 10);
+    
+  }else if(args.length == 3){
+    //Return a random integer between the two arguments, inclusive
+    
+    //Exit with an error message if any of the arguments are not a number
+    for(var a = 1;a < args.length;a ++){
+      if(isNaN(args[a])){
+        await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args[a]+"` is not a number");
+        return;
+      }
+    }
+    
+    lowerbound = parseInt(args[1].replace(".",""), 10);
+    upperbound = parseInt(args[2].replace(".",""), 10);
+    
+  }else{
+    //Exit with an error if too many arguments are given
+    
+    await exports.respond(event, eventtype, "ERROR: Too many arguments given. Please refer to the documentation on how to use this command:\n<"+Config.siteURL+"/docs.html#nomic-bot-commands-rand>");
+    return;
+    
+  }
+  
+  var randint = Math.floor(rand() * (upperbound-lowerbound+1)) + lowerbound;
+  
+  await exports.respond(event, eventtype, "Random integer between "+lowerbound+" and "+upperbound+":\n"+randint);
+  
+}
+
+
+
+/**
+ * @async
+ * @command Generate a random number using the default Math.random() function (which is predictable)
+ * @param {} event The event (message or interaction) that called this command
+ * @param {[string]} args Array of arguments to the command
+ * @param {string} eventtype "message" or "interaction"
+ */
+exports.insecurerand = async (event, args, eventtype) => {
   
   var lowerbound = 0;
   var upperbound = 1;
@@ -543,11 +606,20 @@ exports.roll = async (event, args, eventtype) => {
   //Generate a set of random dice rolls to return
   var rolls = [];
   for(var r = 0;r < amount;r ++){
-    rolls.push( Math.floor(Math.random() * size) + 1 );
+    rolls.push( Math.floor(rand() * size) + 1 );
+  }
+  
+  var reply = "Rolling "+amount+" D"+size+":\n" + rolls.join(", ");
+  if(amount > 1){
+    var sum = 0;
+    for(var r = 0;r < rolls.length;r ++){
+      sum += rolls[r];
+    }
+    reply += "\nSum: "+sum;
   }
   
   //Send a message with the list of dice rolls
-  await exports.respond(event, eventtype, "Rolling "+amount+" D"+size+":\n" + rolls.join(", "));
+  await exports.respond(event, eventtype, reply);
   
 }
 
@@ -621,7 +693,7 @@ exports.listrand = async (event, args, eventtype) => {
   for(var i = 0;i < listlen;i ++){
     
     //Add a random item from the original array to the output array
-    var j = Math.floor(Math.random()*list.length);
+    var j = Math.floor(rand()*list.length);
     output.push(list[j]);
     
     //Remove the chosen data from the copy of the original array
@@ -644,7 +716,7 @@ exports.listrand = async (event, args, eventtype) => {
  */
 exports.randplayer = async (event, args, eventtype) => {
   
-  var p = Math.floor(Math.random()*Players.length);
+  var p = Math.floor(rand()*Players.length);
   
   var player = Players[p];
   
@@ -757,10 +829,10 @@ exports.move = async (event, args, eventtype) => {
 exports.newmouse = async (event, args, eventtype) => {
   
   var stats = "Energy: 1";
-  stats += "\nMischief: " + Math.floor(Math.random() * 2 + 1).toString();
-  stats += "\nWits: " + Math.floor(Math.random() * 2 + 1).toString();
-  stats += "\nPower: " + (Math.floor(Math.random() * 3) + Math.floor(Math.random() * 3) + 2).toString();
-  stats += "\nCuriosity: " + Math.floor(Math.random() * 4 + 1).toString();
+  stats += "\nMischief: " + Math.floor(rand() * 2 + 1).toString();
+  stats += "\nWits: " + Math.floor(rand() * 2 + 1).toString();
+  stats += "\nPower: " + (Math.floor(rand() * 3) + Math.floor(rand() * 3) + 2).toString();
+  stats += "\nCuriosity: " + Math.floor(rand() * 4 + 1).toString();
   
   var reply = new MessageEmbed();
   reply.addField("Statistics:", stats);
@@ -773,7 +845,7 @@ exports.newmouse = async (event, args, eventtype) => {
 
 /**
  * @async
- * @command Return the player list in a random order.
+ * @command Run a git command - can only be used by the system maintainer
  * @param {} event The event (message or interaction) that called this command
  * @param {[string]} args Array of arguments to the command
  * @param {string} eventtype "message" or "interaction"
@@ -893,6 +965,111 @@ exports.msginfo = async (event, args, eventtype) => {
 
 
 
+/**
+ * @async
+ * @command Get the content of a Discord message.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {[string]} args Array of arguments to the command
+ * * @argument message The ID of the Discord message to get information about
+ * * @argument channel The Discord ID or NAS internal ID of the Discord channel which the message is within
+ * @param {string} eventtype "message" or "interaction"
+ */
+exports.msgcontent = async (event, args, eventtype) => {
+  
+  if(args.length < 3){
+    await exports.respond(event, eventtype, "ERROR: Please ensure that you supply the message ID and channel ID. For more information:\n<"+Config.siteURL+"/docs.html#nomic-bot-commands-msginfo>");
+    return;
+  }
+  
+  //Get the channel
+  var channel;
+  if(args[2].length > 2){
+    channel = client.channels.cache.get(args[2]);
+  }else{
+    var channelID = SecureInfo.channels[ parseInt(args[2],10) ]?.ID;
+    if(channelID == undefined){
+      await exports.respond(event, eventtype, "ERROR: Channel not found. Please ensure you supplied a valid channel ID.");
+      return;
+    }
+    channel = client.channels.cache.get(channelID);
+  }
+  
+  //Report an error if the channel was not found
+  if(typeof(channel) != "object"){
+    await exports.respond(event, eventtype, "ERROR: Channel not found. Please ensure you supplied a valid channel ID.");
+    return;
+  }
+  
+  //Get the message
+  var message;
+  await channel.messages.fetch(args[1]).then((msg) => {
+    message = msg;
+  }).catch((err) => {
+    console.log("Error finding message");
+  });
+  
+  //Report an error if the message was not found
+  if(typeof(message) != "object"){
+    await exports.respond(event, eventtype, "ERROR: Message not found. Please ensure you supplied the correct channel ID and a valid message ID.");
+    return;
+  }
+  
+  
+  var reply = "```"+message.content+"```";
+  
+  await exports.respond(event, eventtype, reply);
+  
+}
+
+
+
+/**
+ * @async
+ * @command Attempt to parse the proposition and output the resulting JSON as a file
+ * @param {} event The event (message or interaction) that called this command
+ * @param {[string]} args Array of arguments to the command
+ * * @argument message The ID of the proposition message
+ * @param {string} eventtype "message" or "interaction"
+ */
+exports.parse = async (event, args, eventtype) => {
+  
+  var propositionsChannel = client.channels.cache.get(SecureInfo.channels[1].ID);
+  
+  //Get the message with the given ID
+  var propositionMsg;
+  await propositionsChannel.messages.fetch(args[1]).then((msg) => {
+    propositionMsg = msg;
+  }).catch((err) => {
+    console.log("Error finding proposition");
+  });
+  
+  //Report an error if the message was not found
+  if(typeof(propositionMsg) != "object"){
+    exports.respond(event, eventtype, "Error: Unable to identify proposition. The message ID may be incorrect.");
+    return;
+  }
+  
+  //The the ID of the matching stored proposition
+  var propositionID = PropositionFunctions.matchProposition(propositionMsg);
+  
+  //Report an error if a matching stored proposition was not found
+  if(propositionID == -1){
+    exports.respond(event, eventtype, "Error: Unable to match a stored proposition.");
+    logMessage("ERROR: Matching proposition not found");
+    return;
+  }
+  
+  
+  //Parse the proposition
+  //var parsed = PropositionParsing.parse(Propositions[propositionID].content);
+  
+  //Output a JSON file with the stringified parsing output
+  await exports.respond(event, eventtype, "Awaiting implementation");
+  
+}
+
+
+
 //List of commands
 exports.list = [
   {
@@ -928,7 +1105,32 @@ exports.list = [
   {
     name: "rand",
     description: "Generate random numbers",
-    func: exports.rand
+    func: exports.rand,
+    options: [
+      {
+        name: "lower bound",
+        description: "Lowest integer returned"
+      },
+      {
+        name: "upper bound",
+        description: "Highest integer returned"
+      }
+    ]
+  },
+  {
+    name: "insecurerand",
+    description: "Generate random numbers using the predictable Math.random() function",
+    func: exports.insecurerand,
+    options: [
+      {
+        name: "lower bound",
+        description: "Lowest integer returned"
+      },
+      {
+        name: "upper bound",
+        description: "Highest integer returned"
+      }
+    ]
   },
   {
     name: "roll",
@@ -1020,6 +1222,36 @@ exports.list = [
       {
         name: "channel",
         description: "Number or ID of the channel the message is in"
+      }
+    ]
+  },
+  {
+    name: "msgcontent",
+    description: "Get the content of a message",
+    func: exports.msgcontent,
+    options: [
+      {
+        name: "message",
+        description: "ID of the target message"
+      },
+      {
+        name: "channel",
+        description: "Number or ID of the channel the message is in"
+      }
+    ]
+  },
+  {
+    name: "parse",
+    description: "Attempt to parse a proposition",
+    func: exports.parse,
+    options: [
+      {
+        name: "message",
+        description: "ID of the proposition message"
+      },
+      {
+        name: "options",
+        description: "Control extra functionality"
       }
     ]
   }

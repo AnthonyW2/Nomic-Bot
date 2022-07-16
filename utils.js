@@ -11,6 +11,24 @@
 //Filesystem
 const fs = require("fs");
 
+//Crypto
+const webcrypto = require("crypto").webcrypto;
+
+
+
+/**
+ * Generate a random number between 0 (inclusive) and 1 (exclusive)
+ * This function serves as an unpredictable version of Math.random()
+ */
+exports.rand = () => {
+  
+  //Use the crypto API to generate a random 32 bit unsigned integer
+  //Divide the integer by 2^32 to get a random number between 0 and 1
+  
+  return webcrypto.getRandomValues(new Uint32Array(1))[0] / 0x100000000; //0x100000000 = 2^32 = 4294967296
+  
+}
+
 
 
 /**

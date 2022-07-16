@@ -80,4 +80,16 @@
   Added basic support for Judge suggestions (clarifications).
   Added a command to manually add a new proposition to storage in case the bot failed to do so (or was not running when the proposition was created).
   Added basic support for multi-message propositions.
-  Bot automatically reaction to propositions that have reached a majority with a checkmark emote.
+  Bot automatically reacts to propositions that have reached a majority with a checkmark emote.
+
+3.3.0
+  [2022-6-30 - 2022-7-16]
+  Added a command to get the content of a message in a code block.
+  Added basic proposition parsing functionality (though no command exists to use it yet).
+  Replaced RNG in all existing commands to an unpredictable version, fixing possible RNG manipulation.
+  Bot now automatically sets players as inactive.
+  Proposition content is updated automatically (only if the proposition is a single message).
+  The roll command now returns the sum of all dice rolls.
+
+3.3.1
+  Minor change to voting logic: ties have been removed, and are now automatically recognised as leftvote or downvote majority.

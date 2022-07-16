@@ -3,16 +3,10 @@
  * 
  * @author Anthony Wilson
  * 
- * @version 3.2.2
+ * @version 3.3.0
  * 
  * @since 2021-8-7
  */
-
-//Relevant links:
-/// https://discord.js.org/#/docs/discord.js/v13/general/welcome
-/// https://discordjs.guide/creating-your-bot/
-/// https://discord.js.org/#/docs/discord.js/v13/class/Client
-/// https://discordjs.guide/interactions/slash-commands.html#options
 
 
 
@@ -41,6 +35,7 @@ global.SecureInfo = require("./secureinfo.json");
 global.Rule = require(sitePath+"/Rules/rule-class.js").Rule;
 
 //Rule tree and player info list
+global.RawRules = new Rule( require(sitePath+"/Rules/rules.json") );
 global.Rules = new Rule( require(sitePath+"/Rules/rules.json") );
 global.Players = require(sitePath+"/Players/players.json");
 
@@ -49,6 +44,7 @@ global.Propositions = require(sitePath+"/Propositions/propositions.json");
 
 //Import miscellaneous utility functions
 const Utils = require("./utils.js");
+global.rand = Utils.rand;
 global.logMessage = Utils.logMessage;
 global.identifyPlayer = Utils.identifyPlayer;
 global.updateFile = Utils.updateFile;
@@ -59,6 +55,7 @@ const Commands = require("./commands.js");
 
 //Functions specific to propositions
 global.PropositionFunctions = require("./propositions.js");
+global.PropositionParsing = require(sitePath+"/Propositions/parse.js");
 
 
 
