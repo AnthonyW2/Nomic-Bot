@@ -92,4 +92,8 @@
   The roll command now returns the sum of all dice rolls.
 
 3.3.1
+  [2022-7-16 - 2022-8-7]
   Minor change to voting logic: ties have been removed, and are now automatically recognised as leftvote or downvote majority.
+  Updated inactive player logic to accommodate a rule tweak.
+    I searched for a strange bug which caused one of the players to become inactive when they shouldn't have, though I was unable to find the cause or reproduce it.
+

@@ -2,12 +2,12 @@
   "prefix": "$",
   "sitePath": "../Site/Nomic",
   "siteURL": "https://anthonyw2.github.io/Nomic",
-  "devmode": true,
+  "devmode": false,
   "emoji": {
     "upvote": "835128418970501191",
     "downvote": "835128415165349898",
     "leftvote": "835128416441073695",
     "rightvote": "835128417850097677"
   },
-  "version": "3.3.0"
+  "version": "3.3.1"
 }

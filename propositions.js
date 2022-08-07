@@ -451,6 +451,7 @@ const getVotePlayers = (reactionUsers, proponentID, propositionID) => {
               //If the proposition is one of the most recent 5, make the player active again
               Players[playerID].active = true;
               updateFile("players");
+              logMessage("Made "+Players[playerID].name+" active");
             }
             
           }
@@ -533,12 +534,12 @@ exports.checkMajority = (upvotes, downvotes, leftvotes, remaining) => {
         //UP
         return 1;
       }
-    }else if(leftvotes > upvotes + remaining || downvotes > upvotes + remaining){
+    }else if(leftvotes > upvotes + remaining || downvotes >= upvotes + remaining){
       //Cannot be upvote majority
       if(leftvotes + upvotes > downvotes + remaining){
         //LEFT
         return 3;
-      }else if(downvotes > leftvotes + upvotes + remaining){
+      }else if(downvotes >= leftvotes + upvotes + remaining){
         //DOWN
         return 2;
       }
@@ -587,6 +588,13 @@ exports.updateActivity = () => {
   for(var prop = 0;prop < 5;prop ++){
     
     var proposition = Propositions[Propositions.length - prop - 1];
+    
+    //Make the author of the proposition active
+    for(var p = 0;p < Players.length;p ++){
+      if(proposition.author == p){
+        active[p] = true;
+      }
+    }
     
     //Loop through the first 3 vote types 
     for(var vt = 0;vt < 3;vt ++){
