@@ -3,7 +3,7 @@
  * 
  * @author Anthony Wilson
  * 
- * @version 3.3.1
+ * @version 3.3.2
  * 
  * @since 2021-8-7
  */
@@ -127,12 +127,12 @@ var updateServerURLMsg = async () => {
     
     message.edit(msg);
     
-    //Presumably the IP address of the bot has changed, so the presence of the bot must be reset
-    setPresence();
-    
     logMessage("Updated server URL message");
     
   }
+  
+  //Reset the presence of the bot while we're here
+  setPresence();
   
   //Update the link message again (if necessary) in 5 minutes
   timers.setTimeout(() => {

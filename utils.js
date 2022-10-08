@@ -41,6 +41,9 @@ exports.logMessage = async (message) => {
   console.log(message);
   
   if(!devmode){
+    //Unarchive the NAS-Logs thread if necessary
+    client.channels.cache.get(SecureInfo.channels[6].ID).setArchived(false);
+    
     //Send a message to the NAS-Logs thread
     await client.channels.cache.get(SecureInfo.channels[6].ID).send(message);
   }

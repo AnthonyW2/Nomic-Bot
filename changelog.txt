@@ -97,3 +97,6 @@
   Updated inactive player logic to accommodate a rule tweak.
     I searched for a strange bug which caused one of the players to become inactive when they shouldn't have, though I was unable to find the cause or reproduce it.
 
+3.3.2
+  [2022-10-9]
+  Fixed a rare bug which caused the bot to get stuck in a boot-loop if the NAS-Logs threads is archived.
