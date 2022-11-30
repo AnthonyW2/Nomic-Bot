@@ -3,7 +3,7 @@
 == Season 2 ==
 2.0 - Nomic Bot was created part of the way through Season 2, using the Java Discord API.
 2.x - [Changes to Nomic Bot were not recorded during Season 2]
-2.2 - The final version of Nomic Bot was created for the end of the game.
+2.2 - The final version of Nomic Bot was created for the end of Season 2.
 
 
 == Season 3 ==
@@ -100,3 +100,7 @@
 3.3.2
   [2022-10-9]
   Fixed a rare bug which caused the bot to get stuck in a boot-loop if the NAS-Logs threads is archived.
+
+3.3.3
+  [2022-11-28]
+  Ended Season 3.

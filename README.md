@@ -1,6 +1,6 @@
 # Nomic-Bot
-Specialised Discord bot for a game of Nomic.
+Discord bot created for Season 3 of Blue Sheep Nomic (BS Nomic).
 
-Current version: v3.3.2
+Current version: v3.3.3
 
 See https://anthonyw2.github.io/Nomic/docs.html for documentation.

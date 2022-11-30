@@ -3,7 +3,7 @@
  * 
  * @author Anthony Wilson
  * 
- * @version 3.3.2
+ * @version 3.3.3
  * 
  * @since 2021-8-7
  */
@@ -145,7 +145,7 @@ var updateServerURLMsg = async () => {
 /**
  * @async
  * Update the status of the bot
- * Initially called by @event ready and called again if the IP address of the server changes.
+ * Initially called by @event ready and called again every 5 minutes.
  */
 var setPresence = async () => {
   
@@ -269,8 +269,3 @@ client.on("messageReactionRemove", async (reaction, user) => {
 
 // Connect to the Discord API and log into the Nomic Bot application
 client.login(SecureInfo.token);
-
-
-
-
-

@@ -74,10 +74,10 @@ exports.identifyPlayer = (id) => {
 
 
 /**
- * Return the matching player ID given the Discord user ID
+ * Return the matching attributes of an array of objects
  * @param {Array} list An array of objects
  * @param {String} attr A string specifying the name of the attribute
- * @returns {Array} A array of attributes of the input object
+ * @returns {Array} An array of attributes of the input object
  */
 exports.getAttrList = (list, attr) => {
   
