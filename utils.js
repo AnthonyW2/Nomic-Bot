@@ -75,9 +75,9 @@ exports.identifyPlayer = (id) => {
 
 /**
  * Return the matching attributes of an array of objects
- * @param {Array} list An array of objects
- * @param {String} attr A string specifying the name of the attribute
- * @returns {Array} An array of attributes of the input object
+ * @param {array} list An array of objects
+ * @param {string} attr A string specifying the name of the attribute
+ * @returns {array} An array of attributes of the input object
  */
 exports.getAttrList = (list, attr) => {
   

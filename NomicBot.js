@@ -3,7 +3,7 @@
  * 
  * @author Anthony Wilson
  * 
- * @version 3.3.3
+ * @version 4.0.0
  * 
  * @since 2021-8-7
  */
@@ -180,7 +180,7 @@ var setPresence = async () => {
  * Triggered when a message is sent in a Guild or DM that Nomic Bot has access to.
  * @param {Message} message
  */
-client.on('messageCreate', async (message) => {
+client.on("messageCreate", async (message) => {
   
   //Test if the message is in the #propositions channel
   if(message.channelId === SecureInfo.channels[1].ID){
@@ -204,6 +204,25 @@ client.on('messageCreate', async (message) => {
 client.on("interactionCreate", async (interaction) => {
   
   Commands.processInteraction(interaction);
+  
+});
+
+
+/**
+ * @async
+ * @listens messageUpdate
+ * Triggered when a message is edited in a Guild or DM that Nomic Bot has access to.
+ * @param {Message} oldMessage
+ * @param {Message} newMessage
+ */
+client.on("messageUpdate", async (oldMessage, newMessage) => {
+  
+  //Test if the message is in the #propositions channel
+  if(newMessage.channelId === SecureInfo.channels[1].ID){
+    
+    PropositionFunctions.updateProposition(newMessage);
+    
+  }
   
 });
 
@@ -262,6 +281,20 @@ client.on("messageReactionRemove", async (reaction, user) => {
     PropositionFunctions.handleVote(reaction);
     
   }
+  
+});
+
+
+
+/**
+ * @async
+ * @listens rateLimit
+ * Triggered when the client hits a rate limit while making a request
+ * @param {RateLimitData} rateLimitData
+ */
+client.on("rateLimit", async (rateLimitData) => {
+  
+  console.log("Rate limtied",rateLimitData);
   
 });
 

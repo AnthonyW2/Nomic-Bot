@@ -6,8 +6,8 @@
   "emoji": {
     "upvote": "835128418970501191",
     "downvote": "835128415165349898",
-    "leftvote": "835128416441073695",
     "rightvote": "835128417850097677"
   },
-  "version": "3.3.3"
+  "activityCheckNum": 4,
+  "version": "4.0.0"
 }

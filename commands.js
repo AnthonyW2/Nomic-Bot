@@ -34,20 +34,25 @@ exports.processInteraction = async (interaction) => {
   
   
   //Store the command as an array of arguments (args[0] is the name of the command)
-  var args = [interaction.commandName];
+  //var args = [interaction.commandName];
+  var args = {
+    cmd: interaction.commandName,
+    list: []
+  };
   
   ///Add the raw option values to the args array (this is a "temporary" solution)
   var options = interaction.options._hoistedOptions;
   for(var o = 0;o < options.length;o ++){
-    args.push(options[o].value);
+    //args.push(options[o].value);
+    args[options[o].name] = options[o].value;
+    args.list.push(options[o].value);
   }
-  
   
   //Iterate through commands to find the matching command
   for(var c = 0;c < exports.list.length;c ++){
     
     //Check for matching command
-    if(args[0] === exports.list[c].name){
+    if(args.cmd === exports.list[c].name){
       
       //Execute the function corresponding to the matching command
       exports.list[c].func(interaction, args, "interaction");
@@ -79,13 +84,18 @@ exports.processMessage = async (message) => {
   
   
   //Split the message into arguments (args[0] is the name of the command)
-  var args = message.content.substring(cmdpref.length).split(" ");
+  var arglist = message.content.substring(cmdpref.length).split(" ");
+  var args = {
+    cmd: arglist[0]
+  };
+  arglist.shift();
+  args.list = arglist;
   
   //Iterate through commands to find the matching command
   for(var c = 0;c < exports.list.length;c ++){
     
     //Check for matching command
-    if(args[0] === exports.list[c].name){
+    if(args.cmd === exports.list[c].name){
       
       //Execute the function corresponding to the matching command
       exports.list[c].func(message, args, "message");
@@ -96,15 +106,21 @@ exports.processMessage = async (message) => {
     
   }
   
-  ///if(args[0] === "restart"){
-  ///  
-  ///  ///Authenticate by testing for specific user ID
-  ///  
-  ///  ///Kill the Nomic Bot process
-  ///  ///Systemd will automatically restart the bot
-  ///  
-  ///}
-  ///
+  if(args.cmd === "restart"){
+    
+    ///Authenticate by testing for specific user ID
+    if(message.author.id == SecureInfo.players[0].ID){
+      
+      logMessage("Shutting down...");
+      
+      //Kill the Nomic Bot process
+      //Systemd should automatically restart the bot
+      process.exit();
+      
+    }
+    
+  }
+  
   ///if(args[0] === "reboot"){
   ///  
   ///  ///Authenticate by testing for specific user ID
@@ -164,7 +180,7 @@ exports.respond = async (event, eventtype, response, replyoverride) => {
  * @async
  * @command Get the response latency of Nomic Bot.
  * @param {} event The event (message or interaction) that called this command
- * @param {[string]} args Array of arguments to the command
+ * @param {Object} args Arguments to the command
  * @param {string} eventtype "message" or "interaction"
  */
 exports.ping = async (event, args, eventtype) => {
@@ -208,7 +224,7 @@ exports.ping = async (event, args, eventtype) => {
  * @async
  * @command Send a list of commands.
  * @param {} event The event (message or interaction) that called this command
- * @param {[string]} args Array of arguments to the command
+ * @param {Object} args Arguments to the command
  * @param {string} eventtype "message" or "interaction"
  */
 exports.help = async (event, args, eventtype) => {
@@ -225,7 +241,7 @@ exports.help = async (event, args, eventtype) => {
     ///{ name: "Random Card", value: "To get a random card, use the `"+cmdpref+"card` command."},
   );
   helpMessage.setFooter({
-    text: "Ask Anthony for more details"
+    text: "See the website for more details"
   });
   
   await exports.respond(event, eventtype, {embeds: [helpMessage]});
@@ -238,7 +254,7 @@ exports.help = async (event, args, eventtype) => {
  * @async
  * @command Send a list of players.
  * @param {} event The event (message or interaction) that called this command
- * @param {[string]} args Array of arguments to the command
+ * @param {Object} args Arguments to the command
  * @param {string} eventtype "message" or "interaction"
  */
 exports.players = async (event, args, eventtype) => {
@@ -293,12 +309,17 @@ exports.players = async (event, args, eventtype) => {
  * @async
  * @command Return a summary of the current voting status.
  * @param {} event The event (message or interaction) that called this command
- * @param {[string]} args Array of arguments to the command
+ * @param {Object} args Arguments to the command
  * * @argument message The ID of the proposition message
  * * @argument options Control extra functionality
  * @param {string} eventtype "message" or "interaction"
  */
 exports.votes = async (event, args, eventtype) => {
+  
+  if(eventtype == "message"){
+    args.message = args.list[0];
+    args.options = args.list.slice(1).join(" ");
+  }
   
   ///To do:
   ///Get a list of ongoing propositions if no ID is given
@@ -307,7 +328,7 @@ exports.votes = async (event, args, eventtype) => {
   
   //Get the message with the given ID
   var propositionMsg;
-  await propositionsChannel.messages.fetch(args[1]).then((msg) => {
+  await propositionsChannel.messages.fetch(args.message).then((msg) => {
     propositionMsg = msg;
   }).catch((err) => {
     console.log("Error finding proposition");
@@ -336,7 +357,6 @@ exports.votes = async (event, args, eventtype) => {
   //Create a list of names of players who voted each way
   var upvoteList = getAttrList(voteStatus.upvotes,"name");
   var downvoteList = getAttrList(voteStatus.downvotes,"name");
-  var leftvoteList = getAttrList(voteStatus.leftvotes,"name");
   var rightvoteList = getAttrList(voteStatus.rightvotes,"name");
   
   //Create the reply as an embed
@@ -357,13 +377,10 @@ exports.votes = async (event, args, eventtype) => {
       break;
     case 2:
       reply.addField("Downvote majority","The proposition has not passed");
-      break;
-    case 3:
-      reply.addField("Leftvote majority","The proposition must be re-proposed");
   }
   
   if(args.length > 2){
-    if(args[2] == "remaining" || args[2] == "r"){
+    if(args.options.includes("remaining") || args.options == "r"){
       var remainingList = getAttrList(voteStatus.remaining,"name");
       reply.addField("Remaining:", remainingList.length > 0 ? remainingList.join("\n") : "NA");
     }
@@ -372,7 +389,6 @@ exports.votes = async (event, args, eventtype) => {
   reply.addField("Upvotes: "+upvoteList.length, upvoteList.length > 0 ? upvoteList.join("\n") : "NA");
   reply.addField("Downvotes: "+downvoteList.length, downvoteList.length > 0 ? downvoteList.join("\n") : "NA");
   if(!Propositions[propositionID].judgesuggestion){
-    reply.addField("Leftvotes: "+leftvoteList.length, leftvoteList.length > 0 ? leftvoteList.join("\n") : "NA");
     reply.addField("Rightvotes: "+rightvoteList.length, rightvoteList.length > 0 ? rightvoteList.join("\n") : "NA");
   }
   
@@ -394,7 +410,9 @@ exports.votes = async (event, args, eventtype) => {
  * @async
  * @command Generate a random number using an unpredictable method
  * @param {} event The event (message or interaction) that called this command
- * @param {[string]} args Array of arguments to the command
+ * @param {Object} args Arguments to the command
+ * * @argument lowerbound
+ * * @argument upperbound
  * @param {string} eventtype "message" or "interaction"
  */
 exports.rand = async (event, args, eventtype) => {
@@ -402,41 +420,57 @@ exports.rand = async (event, args, eventtype) => {
   var lowerbound = 0;
   var upperbound = 1;
   
-  if(args.length == 1){
+  if(eventtype == "message"){
+    if(args.list.length == 1){
+      args.upperbound = args.list[0];
+    }else if(args.list.length == 2){
+      args.lowerbound = args.list[0];
+      args.upperbound = args.list[1];
+    }
+  }
+  
+  if(args.lowerbound == undefined && args.upperbound == undefined){
     //If no arguments are given, return a random number in the interval [0,1)
     
     await exports.respond(event, eventtype, "Number between 0 and 1:\n"+rand().toString());
     return;
     
-  }else if(args.length == 2){
-    //Return a random integer between 0 and the only argument, inclusive
+  }else if(args.lowerbound == undefined && args.upperbound != undefined){
+    //Return a random integer between 0 and the upper bound, inclusive
     
     //Exit with an error message if the given argument is not a number
-    if(isNaN(args[1])){
-      await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args[1]+"` is not a number");
+    if(isNaN(args.upperbound)){
+      await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args.upperbound+"` is not a number");
       return;
     }
     
-    upperbound = parseInt(args[1].replace(".",""), 10);
+    upperbound = parseInt(args.upperbound.replace(".",""), 10);
     
-  }else if(args.length == 3){
+  }else if(args.lowerbound != undefined && args.upperbound != undefined){
     //Return a random integer between the two arguments, inclusive
     
     //Exit with an error message if any of the arguments are not a number
-    for(var a = 1;a < args.length;a ++){
-      if(isNaN(args[a])){
-        await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args[a]+"` is not a number");
-        return;
-      }
+    if(isNaN(args.lowerbound)){
+      await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args.lowerbound+"` is not a number");
+      return;
+    }
+    if(isNaN(args.upperbound)){
+      await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args.upperbound+"` is not a number");
+      return;
     }
     
-    lowerbound = parseInt(args[1].replace(".",""), 10);
-    upperbound = parseInt(args[2].replace(".",""), 10);
+    lowerbound = parseInt(args.lowerbound.replace(".",""), 10);
+    upperbound = parseInt(args.upperbound.replace(".",""), 10);
+    
+    if(lowerbound > upperbound){
+      await exports.respond(event, eventtype, "ERROR: Lower bound is larger than upper bound");
+      return;
+    }
     
   }else{
-    //Exit with an error if too many arguments are given
+    //Exit with an error if arguments are supplied incorrectly
     
-    await exports.respond(event, eventtype, "ERROR: Too many arguments given. Please refer to the documentation on how to use this command:\n<"+Config.siteURL+"/docs.html#nomic-bot-commands-rand>");
+    await exports.respond(event, eventtype, "ERROR: Invalid arguments given. Please refer to the documentation on how to use this command:\n<"+Config.siteURL+"/docs.html#nomic-bot-commands-rand>");
     return;
     
   }
@@ -453,7 +487,9 @@ exports.rand = async (event, args, eventtype) => {
  * @async
  * @command Generate a random number using the default Math.random() function (which is predictable)
  * @param {} event The event (message or interaction) that called this command
- * @param {[string]} args Array of arguments to the command
+ * @param {Object} args Arguments to the command
+ * * @argument lowerbound
+ * * @argument upperbound
  * @param {string} eventtype "message" or "interaction"
  */
 exports.insecurerand = async (event, args, eventtype) => {
@@ -461,41 +497,57 @@ exports.insecurerand = async (event, args, eventtype) => {
   var lowerbound = 0;
   var upperbound = 1;
   
-  if(args.length == 1){
+  if(eventtype == "message"){
+    if(args.list.length == 1){
+      args.upperbound = args.list[0];
+    }else if(args.list.length == 2){
+      args.lowerbound = args.list[0];
+      args.upperbound = args.list[1];
+    }
+  }
+  
+  if(args.lowerbound == undefined && args.upperbound == undefined){
     //If no arguments are given, return a random number in the interval [0,1)
     
     await exports.respond(event, eventtype, "Number between 0 and 1:\n"+Math.random().toString());
     return;
     
-  }else if(args.length == 2){
-    //Return a random integer between 0 and the only argument, inclusive
+  }else if(args.lowerbound == undefined && args.upperbound != undefined){
+    //Return a random integer between 0 and the upper bound, inclusive
     
     //Exit with an error message if the given argument is not a number
-    if(isNaN(args[1])){
-      await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args[1]+"` is not a number");
+    if(isNaN(args.upperbound)){
+      await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args.upperbound+"` is not a number");
       return;
     }
     
-    upperbound = parseInt(args[1].replace(".",""), 10);
+    upperbound = parseInt(args.upperbound.replace(".",""), 10);
     
-  }else if(args.length == 3){
+  }else if(args.lowerbound != undefined && args.upperbound != undefined){
     //Return a random integer between the two arguments, inclusive
     
     //Exit with an error message if any of the arguments are not a number
-    for(var a = 1;a < args.length;a ++){
-      if(isNaN(args[a])){
-        await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args[a]+"` is not a number");
-        return;
-      }
+    if(isNaN(args.lowerbound)){
+      await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args.lowerbound+"` is not a number");
+      return;
+    }
+    if(isNaN(args.upperbound)){
+      await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args.upperbound+"` is not a number");
+      return;
     }
     
-    lowerbound = parseInt(args[1].replace(".",""), 10);
-    upperbound = parseInt(args[2].replace(".",""), 10);
+    lowerbound = parseInt(args.lowerbound.replace(".",""), 10);
+    upperbound = parseInt(args.upperbound.replace(".",""), 10);
+    
+    if(lowerbound > upperbound){
+      await exports.respond(event, eventtype, "ERROR: Lower bound is larger than upper bound");
+      return;
+    }
     
   }else{
-    //Exit with an error if too many arguments are given
+    //Exit with an error if arguments are supplied incorrectly
     
-    await exports.respond(event, eventtype, "ERROR: Too many arguments given. Please refer to the documentation on how to use this command:\n<"+Config.siteURL+"/docs.html#nomic-bot-commands-rand>");
+    await exports.respond(event, eventtype, "ERROR: Invalid arguments given. Please refer to the documentation on how to use this command:\n<"+Config.siteURL+"/docs.html#nomic-bot-commands-rand>");
     return;
     
   }
@@ -512,7 +564,9 @@ exports.insecurerand = async (event, args, eventtype) => {
  * @async
  * @command Generate a random number in a more user-friendly way by rolling virtual dice.
  * @param {} event The event (message or interaction) that called this command
- * @param {[string]} args Array of arguments to the command
+ * @param {Object} args Arguments to the command
+ * * @argument amount
+ * * @argument size
  * @param {string} eventtype "message" or "interaction"
  */
 exports.roll = async (event, args, eventtype) => {
@@ -520,74 +574,103 @@ exports.roll = async (event, args, eventtype) => {
   var size = 6;
   var amount = 1;
   
-  //If only a single parameter is given
-  if(args.length == 2){
+  if(eventtype == "interaction"){
     
-    var arg = args[1].toLowerCase().replaceAll(".","");
-    
-    if(arg.includes("d")){
-      
-      var params = arg.split("d");
-      
-      if(params[0] != ""){
-        amount = parseInt(params[0], 10);
+    if(args.size != undefined){
+      size = parseInt(args.size, 10);
+      if(isNaN(args.size)){
+        await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args.size+"` is not a valid numeric input");
+        return;
       }
-      if(params[1] != ""){
-        size = parseInt(params[1], 10);
+    }
+    
+    if(args.amount != undefined){
+      amount = parseInt(args.amount, 10);
+      if(isNaN(args.amount)){
+        await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args.amount+"` is not a valid numeric input");
+        return;
+      }
+    }
+    
+  }else if(eventtype == "message"){
+    
+    //If only a single parameter is given
+    if(args.list.length == 1){
+      
+      var arg = args.list[0].toLowerCase().replaceAll(".","");
+      
+      if(arg.includes("d")){
+        
+        var params = arg.split("d");
+        
+        if(params[0] != "" && !isNaN(params[0])){
+          amount = parseInt(params[0], 10);
+        }
+        if(params[1] != "" && !isNaN(params[1])){
+          size = parseInt(params[1], 10);
+        }
+        
+      }else{
+        
+        if(isNaN(arg) || arg === ""){
+          await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args.list[0]+"` is not a valid numeric input");
+          return;
+        }
+        
+        size = parseInt(arg, 10);
+        
       }
       
     }else{
       
-      size = parseInt(arg, 10);
-      
-    }
-    
-  }else{
-    
-    //Iterate through the given arguments
-    for(var a = 1;a <= 2 && a < args.length;a ++){
-      
-      var arg = args[a].toLowerCase().replaceAll(".","");
-      
-      if(arg.includes("d")){
+      //Iterate through the given arguments
+      for(var a = 0;a < 2 && a < args.list.length;a ++){
         
-        //If the argument contains "d", then this must be the size of the dice
+        var arg = args.list[a].toLowerCase().replaceAll(".","");
         
-        var num = arg.replace("d","");
-        
-        if(isNaN(num)){
-          await exports.respond(event, eventtype, "ERROR: Supplied argument `"+num+"` is not a valid numeric input");
-          return;
-        }
-        
-        size = parseInt(num, 10);
-        
-      }else if(args[a].includes("x")){
-        
-        //If the argument contains "x", then this must be the amount of dice to roll
-        
-        var num = arg.replace("x","");
-        
-        if(isNaN(num)){
-          await exports.respond(event, eventtype, "ERROR: Supplied argument `"+num+"` is not a valid numeric input");
-          return;
-        }
-        
-        amount = parseInt(num, 10);
-        
-      }else{
-        
-        //If the argument does not contain "d" or "x", then treat the first arg as the amount and the second as the die size
-        
-        if(isNaN(arg)){
-          await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args[a]+"` is not a valid numeric input");
-          return;
-        }
-        
-        if(a === 1){
-          amount = parseInt(arg, 10);
-        }else if(a === 2){
-          size = parseInt(arg, 10);
+        if(arg.includes("d")){
+          
+          //If the argument contains "d", then this must be the size of the dice
+          
+          var num = arg.replace("d","");
+          
+          if(isNaN(num) || num === ""){
+            await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args.list[a]+"` is not a valid numeric input");
+            return;
+          }
+          
+          size = parseInt(num, 10);
+          
+        }else if(args.list[a].includes("x")){
+          
+          //If the argument contains "x", then this must be the amount of dice to roll
+          
+          var num = arg.replace("x","");
+          
+          console.log(num);
+          
+          if(isNaN(num) || num === ""){
+            await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args.list[a]+"` is not a valid numeric input");
+            return;
+          }
+          
+          amount = parseInt(num, 10);
+          
+        }else{
+          
+          //If the argument does not contain "d" or "x", then treat the first arg as the amount and the second as the die size
+          
+          if(isNaN(arg) || arg === ""){
+            await exports.respond(event, eventtype, "ERROR: Supplied argument `"+args.list[a]+"` is not a valid numeric input");
+            return;
+          }
+          
+          if(a === 0){
+            amount = parseInt(arg, 10);
+          }else if(a === 1){
+            size = parseInt(arg, 10);
+          }
+          
         }
         
       }
@@ -595,7 +678,6 @@ exports.roll = async (event, args, eventtype) => {
     }
     
   }
-  
   
   //Restrict the size of dice to 10000
   size = Math.min(size, 10000);
@@ -629,7 +711,8 @@ exports.roll = async (event, args, eventtype) => {
  * @async
  * @command Randomise a list of numbers or strings.
  * @param {} event The event (message or interaction) that called this command
- * @param {[string]} args Array of arguments to the command
+ * @param {Object} args Arguments to the command
+ * * @argument items A space- or comma-delimited list of strings to randomise the order of
  * @param {string} eventtype "message" or "interaction"
  */
 exports.listrand = async (event, args, eventtype) => {
@@ -637,7 +720,7 @@ exports.listrand = async (event, args, eventtype) => {
   var list = [];
   
   //Return an error message if no arguments are given
-  if(args.length < 2){
+  if(args.list.length == 0){
     
     await exports.respond(event, eventtype, "ERROR: Please ensure that you supply a valid argument to this command. For more information:\n<"+Config.siteURL+"/docs.html#nomic-bot-commands-listrand>");
     return;
@@ -646,17 +729,17 @@ exports.listrand = async (event, args, eventtype) => {
   
   //Combine all the arguments together into a single string
   var arg = "";
-  for(var a = 1;a < args.length;a ++){
+  for(var a = 0;a < args.list.length;a ++){
     
-    arg += args[a];
+    arg += args.list[a];
     
-    if(a != args.length-1){
+    if(a != args.list.length-1){
       arg += ",";
     }
     
   }
   
-  if(args.length > 2 || arg.includes(" ") || arg.includes(",")){
+  if(args.list.length > 1 || arg.includes(" ") || arg.includes(",")){
     
     var str = arg.replaceAll(", ",",").replaceAll(" ,",",").replaceAll(" ",",").replaceAll(",,",",");
     
@@ -711,7 +794,7 @@ exports.listrand = async (event, args, eventtype) => {
  * @async
  * @command Return a random player.
  * @param {} event The event (message or interaction) that called this command
- * @param {[string]} args Array of arguments to the command
+ * @param {Object} args Arguments to the command
  * @param {string} eventtype "message" or "interaction"
  */
 exports.randplayer = async (event, args, eventtype) => {
@@ -730,7 +813,7 @@ exports.randplayer = async (event, args, eventtype) => {
  * @async
  * @command Return the player list in a random order.
  * @param {} event The event (message or interaction) that called this command
- * @param {[string]} args Array of arguments to the command
+ * @param {Object} args Arguments to the command
  * @param {string} eventtype "message" or "interaction"
  */
 exports.randplayerlist = async (event, args, eventtype) => {
@@ -766,7 +849,7 @@ exports.randplayerlist = async (event, args, eventtype) => {
  * @async
  * @command Manually add a new proposition to storage.
  * @param {} event The event (message or interaction) that called this command
- * @param {[string]} args Array of arguments to the command
+ * @param {Object} args Arguments to the command
  * * @argument message The ID of the proposition message
  * @param {string} eventtype "message" or "interaction"
  */
@@ -776,7 +859,7 @@ exports.addprop = async (event, args, eventtype) => {
   
   //Get the message with the given ID
   var propositionMsg;
-  await propositionsChannel.messages.fetch(args[1]).then((msg) => {
+  await propositionsChannel.messages.fetch(args.list[0]).then((msg) => {
     propositionMsg = msg;
   }).catch((err) => {
     console.log("Error finding proposition");
@@ -805,49 +888,11 @@ exports.addprop = async (event, args, eventtype) => {
 
 /**
  * @async
- * @command Move a player in the World.
- * @param {} event The event (message or interaction) that called this command
- * @param {[string]} args Array of arguments to the command
- * * @argument direction The direction to move.
- * @param {string} eventtype "message" or "interaction"
- */
-exports.move = async (event, args, eventtype) => {
-  
-  await exports.respond(event, eventtype, "Awaiting implementation");
-  
-}
-
-
-
-/**
- * @async
- * @command Randomly generate the stats for a mouse.
- * @param {} event The event (message or interaction) that called this command
- * @param {[string]} args Array of arguments to the command
- * @param {string} eventtype "message" or "interaction"
- */
-exports.newmouse = async (event, args, eventtype) => {
-  
-  var stats = "Energy: 1";
-  stats += "\nMischief: " + Math.floor(rand() * 2 + 1).toString();
-  stats += "\nWits: " + Math.floor(rand() * 2 + 1).toString();
-  stats += "\nPower: " + (Math.floor(rand() * 3) + Math.floor(rand() * 3) + 2).toString();
-  stats += "\nCuriosity: " + Math.floor(rand() * 4 + 1).toString();
-  
-  var reply = new MessageEmbed();
-  reply.addField("Statistics:", stats);
-  
-  await exports.respond(event, eventtype, {embeds: [reply]});
-  
-}
-
-
-
-/**
- * @async
  * @command Run a git command - can only be used by the system maintainer
  * @param {} event The event (message or interaction) that called this command
- * @param {[string]} args Array of arguments to the command
+ * @param {Object} args Arguments to the command
+ * * @argument command
+ * * @argument parameters
  * @param {string} eventtype "message" or "interaction"
  */
 exports.git = async (event, args, eventtype) => {
@@ -858,7 +903,7 @@ exports.git = async (event, args, eventtype) => {
     return;
   }
   
-  switch(args[1]){
+  switch(args.list[0]){
     case "status":
       
       Git.status((output) => {
@@ -872,8 +917,8 @@ exports.git = async (event, args, eventtype) => {
     case "push":
       
       var commitMsg = "Synced changes";
-      if(args.length > 2){
-        commitMsg = args.slice(2).join(" ");
+      if(args.list.length > 1){
+        commitMsg = args.list.slice(1).join(" ");
       }
       
       Git.push(commitMsg, (output) => {
@@ -895,24 +940,30 @@ exports.git = async (event, args, eventtype) => {
  * @async
  * @command Get information about a Discord message.
  * @param {} event The event (message or interaction) that called this command
- * @param {[string]} args Array of arguments to the command
+ * @param {Object} args Arguments to the command
  * * @argument message The ID of the Discord message to get information about
  * * @argument channel The Discord ID or NAS internal ID of the Discord channel which the message is within
  * @param {string} eventtype "message" or "interaction"
  */
 exports.msginfo = async (event, args, eventtype) => {
   
-  if(args.length < 3){
+  //This command always requires 2 arguments, so exit if less than 2 are given
+  if(args.list.length < 2){
     await exports.respond(event, eventtype, "ERROR: Please ensure that you supply the message ID and channel ID. For more information:\n<"+Config.siteURL+"/docs.html#nomic-bot-commands-msginfo>");
     return;
   }
   
+  if(eventtype == "message"){
+    args.message = args.list[0];
+    args.channel = args.list[1];
+  }
+  
   //Get the channel
   var channel;
-  if(args[2].length > 2){
-    channel = client.channels.cache.get(args[2]);
+  if(args.channel.length > 2){
+    channel = client.channels.cache.get(args.channel);
   }else{
-    var channelID = SecureInfo.channels[ parseInt(args[2],10) ]?.ID;
+    var channelID = SecureInfo.channels[ parseInt(args.channel,10) ]?.ID;
     if(channelID == undefined){
       await exports.respond(event, eventtype, "ERROR: Channel not found. Please ensure you supplied a valid channel ID.");
       return;
@@ -928,7 +979,7 @@ exports.msginfo = async (event, args, eventtype) => {
   
   //Get the message
   var message;
-  await channel.messages.fetch(args[1]).then((msg) => {
+  await channel.messages.fetch(args.message).then((msg) => {
     message = msg;
   }).catch((err) => {
     console.log("Error finding message");
@@ -944,19 +995,25 @@ exports.msginfo = async (event, args, eventtype) => {
   //Create the reply as an embed
   var reply = new MessageEmbed();
   
-  reply.setDescription("Information about message with ID "+args[1]);
+  reply.setDescription("Information about message with ID "+args.message);
   
   var createdTSRounded = Math.round(message.createdTimestamp/1000).toString();
   var editedTSRounded = Math.round(message.editedTimestamp/1000).toString();
   var createdTS = (message.createdTimestamp/1000).toString();
   var editedTS = (message.editedTimestamp/1000).toString();
   
-  reply.addField("Timestamp", createdTS + " (<t:"+createdTSRounded+">)");
-  reply.addField("Author", "<@"+message.author.id+">");
+  reply.addFields(
+    { name: "Timestamp", value: createdTS + " (<t:"+createdTSRounded+">)"},
+    { name: "Author", value: "<@"+message.author.id+">"}
+  );
   if(message.editedTimestamp != null){
-    reply.addField("Edited Timestamp", editedTS + " (<t:"+editedTSRounded+">)");
+    reply.addFields(
+      { name: "Edited Timestamp", value: editedTS + " (<t:"+editedTSRounded+">)"}
+    );
   }
-  reply.addField("URL", message.url);
+  reply.addFields(
+    { name: "URL", value: message.url}
+  );
   //reply.setURL(message.url); //I don't know what this does, but it doesn't appear to change anything for regular users
   
   await exports.respond(event, eventtype, {embeds: [reply]});
@@ -969,24 +1026,29 @@ exports.msginfo = async (event, args, eventtype) => {
  * @async
  * @command Get the content of a Discord message.
  * @param {} event The event (message or interaction) that called this command
- * @param {[string]} args Array of arguments to the command
+ * @param {Object} args Arguments to the command
  * * @argument message The ID of the Discord message to get information about
  * * @argument channel The Discord ID or NAS internal ID of the Discord channel which the message is within
  * @param {string} eventtype "message" or "interaction"
  */
 exports.msgcontent = async (event, args, eventtype) => {
   
-  if(args.length < 3){
+  if(args.list.length < 2){
     await exports.respond(event, eventtype, "ERROR: Please ensure that you supply the message ID and channel ID. For more information:\n<"+Config.siteURL+"/docs.html#nomic-bot-commands-msginfo>");
     return;
   }
   
+  if(eventtype == "message"){
+    args.message = args.list[0];
+    args.channel = args.list[1];
+  }
+  
   //Get the channel
   var channel;
-  if(args[2].length > 2){
-    channel = client.channels.cache.get(args[2]);
+  if(args.channel.length > 2){
+    channel = client.channels.cache.get(args.channel);
   }else{
-    var channelID = SecureInfo.channels[ parseInt(args[2],10) ]?.ID;
+    var channelID = SecureInfo.channels[ parseInt(args.channel,10) ]?.ID;
     if(channelID == undefined){
       await exports.respond(event, eventtype, "ERROR: Channel not found. Please ensure you supplied a valid channel ID.");
       return;
@@ -1002,7 +1064,7 @@ exports.msgcontent = async (event, args, eventtype) => {
   
   //Get the message
   var message;
-  await channel.messages.fetch(args[1]).then((msg) => {
+  await channel.messages.fetch(args.message).then((msg) => {
     message = msg;
   }).catch((err) => {
     console.log("Error finding message");
@@ -1027,7 +1089,7 @@ exports.msgcontent = async (event, args, eventtype) => {
  * @async
  * @command Attempt to parse the proposition and output the resulting JSON as a file
  * @param {} event The event (message or interaction) that called this command
- * @param {[string]} args Array of arguments to the command
+ * @param {Object} args Arguments to the command
  * * @argument message The ID of the proposition message
  * @param {string} eventtype "message" or "interaction"
  */
@@ -1035,9 +1097,13 @@ exports.parse = async (event, args, eventtype) => {
   
   var propositionsChannel = client.channels.cache.get(SecureInfo.channels[1].ID);
   
+  if(eventtype == "message"){
+    args.message = args.list[0];
+  }
+  
   //Get the message with the given ID
   var propositionMsg;
-  await propositionsChannel.messages.fetch(args[1]).then((msg) => {
+  await propositionsChannel.messages.fetch(args.message).then((msg) => {
     propositionMsg = msg;
   }).catch((err) => {
     console.log("Error finding proposition");
@@ -1108,11 +1174,11 @@ exports.list = [
     func: exports.rand,
     options: [
       {
-        name: "lower bound",
+        name: "lowerbound",
         description: "Lowest integer returned"
       },
       {
-        name: "upper bound",
+        name: "upperbound",
         description: "Highest integer returned"
       }
     ]
@@ -1123,11 +1189,11 @@ exports.list = [
     func: exports.insecurerand,
     options: [
       {
-        name: "lower bound",
+        name: "lowerbound",
         description: "Lowest integer returned"
       },
       {
-        name: "upper bound",
+        name: "upperbound",
         description: "Highest integer returned"
       }
     ]
@@ -1178,22 +1244,6 @@ exports.list = [
         description: "ID of the proposition message"
       }
     ]
-  },
-  {
-    name: "move",
-    description: "Move a player in the World",
-    func: exports.move,
-    options: [
-      {
-        name: "direction",
-        description: "The direction the player wishes to move"
-      }
-    ]
-  },
-  {
-    name: "newmouse",
-    description: "Randomly generate the stats for a new mouse",
-    func: exports.newmouse
   },
   {
     name: "git",

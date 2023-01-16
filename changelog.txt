@@ -104,3 +104,11 @@
 3.3.3
   [2022-11-28]
   Ended Season 3.
+
+4.0.0
+  [2023-1-8 - 2023-1-15]
+  Prepared Nomic Bot for Season 4.
+  Removed left votes.
+  Changed command argument processing to better suit slash commands, and modified all (applicable) commands for the new argument format.
+  Added an extra timestamp to propositions.
+  Tweaked inactivity.

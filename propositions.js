@@ -20,7 +20,6 @@ exports.createProposition = async (message) => {
   
   var upvoteEmoji = message.guild.emojis.cache.get(Config.emoji.upvote);
   var downvoteEmoji = message.guild.emojis.cache.get(Config.emoji.downvote);
-  var leftvoteEmoji = message.guild.emojis.cache.get(Config.emoji.leftvote);
   var rightvoteEmoji = message.guild.emojis.cache.get(Config.emoji.rightvote);
   //var upvoteEmoji = "👍";
   //var downvoteEmoji = "👎";
@@ -28,9 +27,7 @@ exports.createProposition = async (message) => {
   //React to the message with the vote emoji
   message.react(upvoteEmoji).then(() => {
     message.react(downvoteEmoji).then(() => {
-      message.react(leftvoteEmoji).then(() => {
-        message.react(rightvoteEmoji);
-      });
+      message.react(rightvoteEmoji);
     });
   });
   
@@ -71,9 +68,10 @@ exports.createProposition = async (message) => {
   Propositions.push({
     author: proponent,
     content: message.content,
-    timestamp: Math.round(message.createdTimestamp/1000),
+    proposedTimestamp: Math.round(message.createdTimestamp/1000),
+    majorityTimestamp: null,
     messageID: message.id,
-    votes: [[],[],[],[]],
+    votes: [[],[],[]],
     majority: false,
     link: message.url
   });
@@ -187,23 +185,17 @@ exports.updateProposition = async (proposition, votes) => {
         console.log("Proposition reached downvote majority");
         majorityAnnouncementChannel.send("<@"+message.author.id+">'s proposition has reached downvote majority, so it has not passed.\n"+message.url);
         reachedMajority = true;
-        break;
-      case 3:
-        console.log("Proposition reached leftvote majority");
-        majorityAnnouncementChannel.send("<@"+message.author.id+">'s proposition has reached leftvote majority, and must be re-proposed within 72 hours.\n"+message.url);
-        reachedMajority = true;
     }
     
   }
   
   var upvotes = getAttrList(voteStatus.upvotes,"PID");
   var downvotes = getAttrList(voteStatus.downvotes,"PID");
-  var leftvotes = getAttrList(voteStatus.leftvotes,"PID");
   var rightvotes = getAttrList(voteStatus.rightvotes,"PID");
   
   if(!Propositions[prop].multimessage){
     if(Propositions[prop].content != message.content){
-      logMessage("This proposition has been edited, and needs to be updated");
+      logMessage("Proposition #"+prop+" has been edited and needs to be updated");
     }
   }
   
@@ -213,6 +205,9 @@ exports.updateProposition = async (proposition, votes) => {
   }
   
   if(reachedMajority){
+    //Add the majority timestamp to the proposition
+    Propositions[prop].majorityTimestamp = Math.round((new Date()).getTime()/1000);
+    
     message.react("✅");
   }
   
@@ -220,12 +215,12 @@ exports.updateProposition = async (proposition, votes) => {
   //Update the votes
   Propositions[prop].votes[0] = JSON.parse(JSON.stringify(upvotes));
   Propositions[prop].votes[1] = JSON.parse(JSON.stringify(downvotes));
-  Propositions[prop].votes[2] = JSON.parse(JSON.stringify(leftvotes));
-  Propositions[prop].votes[3] = JSON.parse(JSON.stringify(rightvotes));
+  Propositions[prop].votes[2] = JSON.parse(JSON.stringify(rightvotes));
   
   //Update the content (only if it is a single-message proposition)
-  if(!Propositions[prop].multimessage){
+  if(!Propositions[prop].multimessage && Propositions[prop].content != message.content){
     Propositions[prop].content = message.content;
+    logMessage("Updated proposition #"+prop+" after edit");
   }
   
   //Update the majority status of the proposition
@@ -253,10 +248,8 @@ exports.getVoteStatus = async (message, propositionID) => {
    * * 0 = tie
    * * 1 = upvote majority
    * * 2 = downvote majority
-   * * 3 = leftvote majority
    * @property {[Player]} upvotes Array of players who upvoted
    * @property {[Player]} downvotes Array of players who downvoted
-   * @property {[Player]} leftvotes Array of players who leftvoted
    * @property {[Player]} rightvotes Array of players who rightvoted
    * @property {[Player]} remaining Array of players who are yet to vote
    * @property {boolean} illegalVote Whether or not a user has voted on the proposition in a way which violates the rules
@@ -265,7 +258,6 @@ exports.getVoteStatus = async (message, propositionID) => {
     majority: -1,
     upvotes: [],
     downvotes: [],
-    leftvotes: [],
     rightvotes: [],
     remaining: [],
     illegalVote: false
@@ -286,18 +278,13 @@ exports.getVoteStatus = async (message, propositionID) => {
   var downvotePlayers = getVotePlayers(downvoteUsers, proponent, propositionID);
   output.downvotes = downvotePlayers.players;
   
-  //Get the players who leftvoted
-  var leftvoteUsers = await message.reactions.cache.get(Config.emoji.leftvote)?.users.fetch();
-  var leftvotePlayers = getVotePlayers(leftvoteUsers, proponent, propositionID);
-  output.leftvotes = leftvotePlayers.players;
-  
   //Get the players who rightvoted
   var rightvoteUsers = await message.reactions.cache.get(Config.emoji.rightvote)?.users.fetch();
   var rightvotePlayers = getVotePlayers(rightvoteUsers, proponent, propositionID);
   output.rightvotes = rightvotePlayers.players;
   
   //Detect any illegal votes
-  output.illegalVote = (upvotePlayers.illegalVote || downvotePlayers.illegalVote || leftvotePlayers.illegalVote || rightvotePlayers.illegalVote);
+  output.illegalVote = (upvotePlayers.illegalVote || downvotePlayers.illegalVote || rightvotePlayers.illegalVote);
   
   
   //Count how many times each player voted
@@ -313,10 +300,6 @@ exports.getVoteStatus = async (message, propositionID) => {
   for(var p = 0;p < output.downvotes.length;p ++){
     votedPlayers[output.downvotes[p].PID] ++;
   }
-  //Check leftvotes
-  for(var p = 0;p < output.leftvotes.length;p ++){
-    votedPlayers[output.leftvotes[p].PID] ++;
-  }
   //Add rightvotes for past players
   for(var p = 0;p < Players.length;p ++){
     if(!Players[p].playing){
@@ -325,7 +308,7 @@ exports.getVoteStatus = async (message, propositionID) => {
     }
   }
   //Check if the proposition is more than 12 hours old
-  if(Math.round((new Date()).getTime()/1000) > Propositions[propositionID].timestamp+12*60*60 && !Propositions[propositionID].judgesuggestion){
+  if(Math.round((new Date()).getTime()/1000) > Propositions[propositionID].proposedTimestamp+12*60*60 && !Propositions[propositionID].judgesuggestion){
     //Add rightvotes for inactive players
     for(var p = 0;p < Players.length;p ++){
       if(!Players[p].active && votedPlayers[p] == 0){
@@ -364,7 +347,7 @@ exports.getVoteStatus = async (message, propositionID) => {
   
   
   //Sanity check
-  var totalVotes = output.upvotes.length + output.downvotes.length + output.leftvotes.length + output.rightvotes.length;
+  var totalVotes = output.upvotes.length + output.downvotes.length + output.rightvotes.length;
   if(totalVotes + output.remaining.length != Players.length-(Propositions[propositionID].judgesuggestion ? 0 : 1)){
     logMessage("**Warning**: Total votes + remaining votes does not equal the total amount of possible votes");
     return output;
@@ -372,14 +355,14 @@ exports.getVoteStatus = async (message, propositionID) => {
   
   
   //Identify majority
-  if(Math.round((new Date()).getTime()/1000) > Propositions[propositionID].timestamp+72*60*60){
+  if(Math.round((new Date()).getTime()/1000) > Propositions[propositionID].proposedTimestamp+72*60*60){
     //The proposition has timed out
     //Identify which majority has been reached
-    output.majority = exports.checkMajority(output.upvotes.length, output.downvotes.length, output.leftvotes.length, 0);
+    output.majority = exports.checkMajority(output.upvotes.length, output.downvotes.length, 0);
   }else{
     //The proposition is still active
     //Check if the proposition has reached a majority of votes
-    output.majority = exports.checkMajority(output.upvotes.length, output.downvotes.length, output.leftvotes.length, output.remaining.length);
+    output.majority = exports.checkMajority(output.upvotes.length, output.downvotes.length, output.remaining.length);
   }
   
   
@@ -390,7 +373,7 @@ exports.getVoteStatus = async (message, propositionID) => {
 
 
 /**
- * Given a list of users, return the corresponding player objects, and detect illegal votes
+ * Given a list of users, return the corresponding player objects and detect illegal votes
  * @param {Collection<User>} reactionUsers A list of users who reacted to a proposition
  * @param {int} proponentID The PID of the proponent
  * @param {int} propositionID ID of the proposition
@@ -447,8 +430,9 @@ const getVotePlayers = (reactionUsers, proponentID, propositionID) => {
           //Check if the player is flagged as inactive
           if(!Players[playerID].active){
             
-            if(propositionID+5 >= Propositions.length){
-              //If the proposition is one of the most recent 5, make the player active again
+            if(propositionID+Config.activityCheckNum >= Propositions.length){
+              //If the proposition is recent, make the player active again
+              //Known issue: this incorrectly classifies some inactive players as active if they rightvote
               Players[playerID].active = true;
               updateFile("players");
               logMessage("Made "+Players[playerID].name+" active");
@@ -484,65 +468,36 @@ const getVotePlayers = (reactionUsers, proponentID, propositionID) => {
  * Given the amounts of votes on a proposition, return the type of majority reached (if applicable)
  * @param {int} upvotes Amount of upvotes
  * @param {int} downvotes Amount of downvotes
- * @param {int} leftvotes Amount of leftvotes
  * @param {int} remaining Amount of players who have not voted yet
  * @returns {int} Majority indicator:
  * * -1 = Not yet majority
  * * 0 = Tie (Deprecated)
  * * 1 = Upvote majority
  * * 2 = Downvote majority
- * * 3 = Leftvote majority
  */
-exports.checkMajority = (upvotes, downvotes, leftvotes, remaining) => {
+exports.checkMajority = (upvotes, downvotes, remaining) => {
   
   if(remaining == 0){
     //If there are no votes remaining a majority must be reached
     if(upvotes == downvotes){
-      if(leftvotes == 0){
-        //TIE
-        return 0;
-      }else if(leftvotes > 0){
-        //LEFT
-        return 3;
-      }
+      //TIE
+      return 0;
     }else if(upvotes > downvotes){
-      if(leftvotes >= upvotes){
-        //LEFT
-        return 3;
-      }else if(upvotes > leftvotes){
-        //UP
-        return 1;
-      }
+      //UP
+      return 1;
     }else if(downvotes > upvotes){
-      if(leftvotes + upvotes > downvotes){
-        //LEFT
-        return 3;
-      }else if(downvotes >= leftvotes + upvotes){
-        //DOWN
-        return 2;
-      }
+      //DOWN
+      return 2;
     }
     
   }else{
     //If there are votes remaining a majority may or may not be reached
-    if(leftvotes > downvotes + remaining || upvotes > downvotes + remaining){
-      //Cannot be downvote majority
-      if(leftvotes >= upvotes + remaining){
-        //LEFT
-        return 3;
-      }else if(upvotes > leftvotes + remaining){
-        //UP
-        return 1;
-      }
-    }else if(leftvotes > upvotes + remaining || downvotes >= upvotes + remaining){
-      //Cannot be upvote majority
-      if(leftvotes + upvotes > downvotes + remaining){
-        //LEFT
-        return 3;
-      }else if(downvotes >= leftvotes + upvotes + remaining){
-        //DOWN
-        return 2;
-      }
+    if(upvotes > downvotes + remaining){
+      //UP
+      return 1;
+    }else if(downvotes >= upvotes + remaining){
+      //DOWN
+      return 2;
     }
   }
   
@@ -584,8 +539,8 @@ exports.updateActivity = () => {
     active[p] = false;
   }
   
-  //Loop through the most recent 5 propositions
-  for(var prop = 0;prop < 5;prop ++){
+  //Loop through the most recent propositions
+  for(var prop = 0;prop < Config.activityCheckNum && prop < Propositions.length;prop ++){
     
     var proposition = Propositions[Propositions.length - prop - 1];
     
@@ -596,8 +551,8 @@ exports.updateActivity = () => {
       }
     }
     
-    //Loop through the first 3 vote types 
-    for(var vt = 0;vt < 3;vt ++){
+    //Loop through the first 2 vote types (up & down)
+    for(var vt = 0;vt < 2;vt ++){
       
       for(var pl = 0;pl < proposition.votes[vt].length;pl ++){
         active[proposition.votes[vt][pl]] = true;

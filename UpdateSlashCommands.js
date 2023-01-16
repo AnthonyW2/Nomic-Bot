@@ -48,9 +48,11 @@ for(var c = 0;c < Commands.list.length;c ++){
   
 }
 
-const rest = new REST({ version: "9" }).setToken(SecureInfo.token);
+console.log(commands);
 
-///console.log("Registering application (/) commands...");
+const rest = new REST({ version: "10" }).setToken(SecureInfo.token);
+
+console.log("Registering application (/) commands...");
 
 //Guild-specific commands
 rest.put(
