@@ -3,7 +3,7 @@
  * 
  * @author Anthony Wilson
  * 
- * @version 4.0.0
+ * @version 4.1.0
  * 
  * @since 2021-8-7
  */
@@ -90,6 +90,12 @@ client.on("ready", () => {
   updateServerURLMsg();
   
   
+  //Schedule proposition checks
+  for(var p = 0;p < Propositions.length;p ++){
+    PropositionFunctions.scheduleUpdate(p);
+  }
+  
+  
   ///Still to do: Get disconnect notifications working
   //console.log(client.ws);
   //console.log(client.ws.shards.get(0));
@@ -135,9 +141,7 @@ var updateServerURLMsg = async () => {
   setPresence();
   
   //Update the link message again (if necessary) in 5 minutes
-  timers.setTimeout(() => {
-    updateServerURLMsg();
-  }, 1000*60*5);
+  timers.setTimeout(updateServerURLMsg, 1000*60*5);
   
 }
 
@@ -249,7 +253,10 @@ client.on("messageReactionAdd", async (reaction, user) => {
   
   if(reaction.message.channelId === SecureInfo.channels[1].ID){
     
-    PropositionFunctions.handleVote(reaction);
+    //if(user.id != SecureInfo.botID || reaction._emoji.id == Config.emoji.rightvote){
+    if(user.id != SecureInfo.botID){
+      PropositionFunctions.handleVote(reaction);
+    }
     
   }
   
@@ -278,7 +285,9 @@ client.on("messageReactionRemove", async (reaction, user) => {
   
   if(reaction.message.channelId === SecureInfo.channels[1].ID){
     
-    PropositionFunctions.handleVote(reaction);
+    if(user.id != SecureInfo.botID){
+      PropositionFunctions.handleVote(reaction);
+    }
     
   }
   
@@ -292,11 +301,11 @@ client.on("messageReactionRemove", async (reaction, user) => {
  * Triggered when the client hits a rate limit while making a request
  * @param {RateLimitData} rateLimitData
  */
-client.on("rateLimit", async (rateLimitData) => {
-  
-  console.log("Rate limtied",rateLimitData);
-  
-});
+//client.on("rateLimit", async (rateLimitData) => {
+//  
+//  console.log("Rate limited",rateLimitData);
+//  
+//});
 
 
 

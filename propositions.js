@@ -8,6 +8,9 @@
 
 "use strict";
 
+//Timers
+const timers = require("timers");
+
 
 
 /**
@@ -24,45 +27,68 @@ exports.createProposition = async (message) => {
   //var upvoteEmoji = "👍";
   //var downvoteEmoji = "👎";
   
+  var suggestion = false;
+  if(message.content.split("\n")[0].toLowerCase().includes("judge")){
+    suggestion = true;
+  }
+  
   //React to the message with the vote emoji
   message.react(upvoteEmoji).then(() => {
     message.react(downvoteEmoji).then(() => {
-      message.react(rightvoteEmoji);
+      if(!suggestion){
+        message.react(rightvoteEmoji);
+      }
     });
   });
   
   var proponent = identifyPlayer(message.author.id);
   
-  //Check if the proponent already has an active proposition
-  for(var p = Propositions.length-1;p >= 0;p --){
-    if(Propositions[p].author == proponent){
-      if(!Propositions[p].majority){
-        if(p == Propositions.length-1){
-          
-          //Instead of adding a separate proposition, add the second message to the proposition object (making it a "multi-message proposition")
-          if(Propositions[p].multimessage){
-            Propositions[p].messages.push(message.id);
-          }else{
-            Propositions[p].multimessage = true;
-            Propositions[p].messages = [Propositions[p].messageID, message.id];
-          }
-          Propositions[p].messageID = message.id; //Use the ID of the last message sent
-          Propositions[p].content += "\n\n" + message.content;
-          
-          updateFile("propositions");
-          
-          logMessage("Appended message to multi-message proposition.");
-          
-          return;
-          
-        }else{
-          logMessage("WARNING: "+Players[proponent]+" may have illegally proposed.");
-        }
-      }else{
-        p = -1;
-      }
-    }
+  //If the proponent is inactive, make them active
+  if(!Players[proponent].active){
+    Players[proponent].active = true;
+    updateFile("players");
+    logMessage("Made "+Players[proponent].name+" active");
   }
+  
+  //Check if the proponent already has an active proposition
+  //for(var p = Propositions.length-1;p >= 0;p --){
+  //  if(Propositions[p].author == proponent){
+  //    if(!Propositions[p].majority){
+  //      if(p == Propositions.length-1){
+  //        
+  //        //Instead of adding a separate proposition, add the second message to the proposition object (making it a "multi-message proposition")
+  //        if(Propositions[p].multimessage){
+  //          Propositions[p].messages.push(message.id);
+  //        }else{
+  //          Propositions[p].multimessage = true;
+  //          Propositions[p].messages = [Propositions[p].messageID, message.id];
+  //        }
+  //        Propositions[p].messageID = message.id; //Use the ID of the last message sent
+  //        Propositions[p].content += "\n\n" + message.content;
+  //        
+  //        updateFile("propositions");
+  //        
+  //        //Remove all reactions from the previous proposition message
+  //        var previousMsgID = Propositions[p].messages[Propositions[p].messages.length-2];
+  //        await message.channel.messages.fetch(previousMsgID).then((msg) => {
+  //          msg.reactions.removeAll();
+  //        }).catch((err) => {
+  //          logMessage("WARNING: Error finding previous message.");
+  //        });
+  //        
+  //        logMessage("Appended message to multi-message proposition.");
+  //        
+  //        return;
+  //        
+  //      }else{
+  //        logMessage("WARNING: "+Players[proponent]+" may have illegally proposed.");
+  //      }
+  //    }else{
+  //      //Exit the loop
+  //      p = -1;
+  //    }
+  //  }
+  //}
   
   //Add the proposition to the list
   Propositions.push({
@@ -75,20 +101,23 @@ exports.createProposition = async (message) => {
     majority: false,
     link: message.url
   });
+  var prop = Propositions.length-1;
   
-  if(message.content.split("\n")[0].toLowerCase().includes("judge")){
-    Propositions[Propositions.length-1].judgesuggestion = true;
+  if(suggestion){
+    Propositions[prop].judgesuggestion = true;
   }
   
   //Update propositions.json
   updateFile("propositions");
+  
+  exports.scheduleUpdate(prop);
   
   logMessage("New proposition created");
   
   //Update the activity status of all players
   exports.updateActivity();
   
-  await client.channels.cache.get(SecureInfo.channels[2].ID).send("<@&977412127121879100> "+Players[proponent].name+" has made a proposition.\n"+message.url);
+  await client.channels.cache.get(SecureInfo.channels[2].ID).send("<@&977412127121879100> "+Players[proponent].name+" has made a "+(suggestion ? "suggestion" : "proposition")+".\n"+message.url);
   
 }
 
@@ -97,7 +126,7 @@ exports.createProposition = async (message) => {
 /**
  * @async
  * Called when a user reacts to a message in #propositions.
- * @param {ReactionManager} reaction The reaction to the message containing the proposition
+ * @param {MessageReaction} reaction The reaction to the message containing the proposition
  */
 exports.handleVote = async (reaction) => {
   
@@ -111,8 +140,66 @@ exports.handleVote = async (reaction) => {
 
 /**
  * @async
+ * Schedule a check on the status of a proposition
+ * @param {int} prop The ID of the proposition
+ * @param {Object} votes (Optional) The votes on the proposition
+ */
+exports.scheduleUpdate = async (prop) => {
+  
+  //logMessage("Scheduling for "+prop);
+  
+  if(Propositions[prop].majority){
+    return;
+  }
+  
+  var now = Math.round((new Date()).getTime()/1000);
+  var proposed = Propositions[prop].proposedTimestamp;
+  
+  if(now - proposed < Config.inactiveVoteTimeout*60*60){
+    //Less than 12 hours since proposal
+    
+    //Schedule the next check
+    logMessage("Proposition " + prop + " scheduled to be checked in " + (1000*(proposed + Config.inactiveVoteTimeout*60*60 - now + 1))+"ms");
+    timers.setTimeout(exports.scheduleUpdate, 1000*(proposed + Config.inactiveVoteTimeout*60*60 - now + 1), prop);
+    
+  }else if(now - proposed >= Config.inactiveVoteTimeout*60*60 && now - proposed <= Config.propositionTimeout*60*60){
+    //Between 12 & 72 hours since proposal
+    
+    //Check if any rightvotes have come from inactive players
+    var inactiveVoted = false;
+    for(var v = 0;v < Propositions[prop].votes[2].length;v ++){
+      if(!Players[ Propositions[prop].votes[2][v] ].active){
+        inactiveVoted = true;
+        v = Propositions[prop].votes[2].length;
+      }
+    }
+    if(!inactiveVoted){
+      //If there are no rightvotes from inactive players, update the proposition
+      console.log("Updating prop (0)");
+      exports.updateProposition(prop);
+    }
+    
+    //Schedule the next check
+    console.log("set for",1000*(proposed + Config.propositionTimeout*60*60 - now + 1));
+    logMessage("Proposition " + prop + " scheduled to be checked in " + (1000*(proposed + Config.propositionTimeout*60*60 - now + 1))+"ms");
+    timers.setTimeout(exports.scheduleUpdate, 1000*(proposed + Config.propositionTimeout*60*60 - now + 1), prop);
+    
+  }else if(now - proposed > Config.propositionTimeout*60*60){
+    //More than 72 hours since proposal
+    
+    console.log("Updating prop (1)");
+    exports.updateProposition(prop);
+    
+  }
+  
+}
+
+
+
+/**
+ * @async
  * Update the votes on a proposition. Make an announcement if it reaches a majority.
- * @param {Message} message The message containing the proposition (can also be an integer specifying the ID of the proposition)
+ * @param {Message} proposition The message containing the proposition (can also be an integer specifying the ID of the proposition)
  * @param {Object} votes (Optional) The votes on the proposition
  */
 exports.updateProposition = async (proposition, votes) => {
@@ -193,10 +280,8 @@ exports.updateProposition = async (proposition, votes) => {
   var downvotes = getAttrList(voteStatus.downvotes,"PID");
   var rightvotes = getAttrList(voteStatus.rightvotes,"PID");
   
-  if(!Propositions[prop].multimessage){
-    if(Propositions[prop].content != message.content){
-      logMessage("Proposition #"+prop+" has been edited and needs to be updated");
-    }
+  if(!Propositions[prop].multimessage && Propositions[prop].content != message.content){
+    logMessage("Proposition #"+prop+" has been edited and needs to be updated");
   }
   
   //Stop here if majority has already been reached.
@@ -267,20 +352,24 @@ exports.getVoteStatus = async (message, propositionID) => {
   //Store the PID of the proponent
   var proponent = identifyPlayer(message.author.id);
   
+  //Get reactions in parallel
+  var upvotesPromise = message.reactions.cache.get(Config.emoji.upvote)?.users.fetch();
+  var downvotesPromise = message.reactions.cache.get(Config.emoji.downvote)?.users.fetch();
+  var rightvotesPromise = message.reactions.cache.get(Config.emoji.rightvote)?.users.fetch();
   
   //Get the players who upvoted
-  var upvoteUsers = await message.reactions.cache.get(Config.emoji.upvote)?.users.fetch();
+  var upvoteUsers = await upvotesPromise;
   var upvotePlayers = getVotePlayers(upvoteUsers, proponent, propositionID);
   output.upvotes = upvotePlayers.players;
   
   //Get the players who downvoted
-  var downvoteUsers = await message.reactions.cache.get(Config.emoji.downvote)?.users.fetch();
+  var downvoteUsers = await downvotesPromise;
   var downvotePlayers = getVotePlayers(downvoteUsers, proponent, propositionID);
   output.downvotes = downvotePlayers.players;
   
   //Get the players who rightvoted
-  var rightvoteUsers = await message.reactions.cache.get(Config.emoji.rightvote)?.users.fetch();
-  var rightvotePlayers = getVotePlayers(rightvoteUsers, proponent, propositionID);
+  var rightvoteUsers = await rightvotesPromise;
+  var rightvotePlayers = getVotePlayers(rightvoteUsers, proponent, propositionID, false);
   output.rightvotes = rightvotePlayers.players;
   
   //Detect any illegal votes
@@ -293,41 +382,39 @@ exports.getVoteStatus = async (message, propositionID) => {
     votedPlayers.push(0);
   }
   //Check upvotes
-  for(var p = 0;p < output.upvotes.length;p ++){
-    votedPlayers[output.upvotes[p].PID] ++;
+  for(var v = 0;v < output.upvotes.length;v ++){
+    votedPlayers[output.upvotes[v].PID] ++;
   }
   //Check downvotes
-  for(var p = 0;p < output.downvotes.length;p ++){
-    votedPlayers[output.downvotes[p].PID] ++;
+  for(var v = 0;v < output.downvotes.length;v ++){
+    votedPlayers[output.downvotes[v].PID] ++;
+  }
+  //Check rightvotes
+  for(var v = 0;v < output.rightvotes.length;v ++){
+    votedPlayers[output.rightvotes[v].PID] ++;
   }
   //Add rightvotes for past players
   for(var p = 0;p < Players.length;p ++){
-    if(!Players[p].playing){
+    if(!Players[p].playing && votedPlayers[p] == 0){
       output.rightvotes.push(Players[p]);
       votedPlayers[p] ++;
     }
   }
   //Check if the proposition is more than 12 hours old
-  if(Math.round((new Date()).getTime()/1000) > Propositions[propositionID].proposedTimestamp+12*60*60 && !Propositions[propositionID].judgesuggestion){
+  if(Math.round((new Date()).getTime()/1000) > Propositions[propositionID].proposedTimestamp+Config.inactiveVoteTimeout*60*60 && !Propositions[propositionID].judgesuggestion){
     //Add rightvotes for inactive players
     for(var p = 0;p < Players.length;p ++){
       if(!Players[p].active && votedPlayers[p] == 0){
         output.rightvotes.push(Players[p]);
+        votedPlayers[p] ++;
       }
-    }
-  }
-  //Check rightvotes
-  for(var p = 0;p < output.rightvotes.length;p ++){
-    votedPlayers[output.rightvotes[p].PID] ++;
-    if(!output.rightvotes[p].playing){
-      votedPlayers[output.rightvotes[p].PID] = 1;
     }
   }
   for(var p = 0;p < votedPlayers.length;p ++){
     
     if(votedPlayers[p] == 0){
       
-      if(p != proponent){
+      if(p != proponent || Propositions[propositionID].judgesuggestion){
         //Player has not voted yet - add to "output.remaining" array
         output.remaining.push(Players[p]);
       }
@@ -350,12 +437,14 @@ exports.getVoteStatus = async (message, propositionID) => {
   var totalVotes = output.upvotes.length + output.downvotes.length + output.rightvotes.length;
   if(totalVotes + output.remaining.length != Players.length-(Propositions[propositionID].judgesuggestion ? 0 : 1)){
     logMessage("**Warning**: Total votes + remaining votes does not equal the total amount of possible votes");
+    output.illegalVote = true;
+    output.majority = -1;
     return output;
   }
   
   
   //Identify majority
-  if(Math.round((new Date()).getTime()/1000) > Propositions[propositionID].proposedTimestamp+72*60*60){
+  if(Math.round((new Date()).getTime()/1000) > Propositions[propositionID].proposedTimestamp+Config.propositionTimeout*60*60){
     //The proposition has timed out
     //Identify which majority has been reached
     output.majority = exports.checkMajority(output.upvotes.length, output.downvotes.length, 0);
@@ -377,9 +466,10 @@ exports.getVoteStatus = async (message, propositionID) => {
  * @param {Collection<User>} reactionUsers A list of users who reacted to a proposition
  * @param {int} proponentID The PID of the proponent
  * @param {int} propositionID ID of the proposition
+ * @param {boolean} makeActive (Optional, default true) Whether or not to make the players active if they have voted
  * @returns {Object} An object containing an array of players and a boolean for any illegal votes detected
  */
-const getVotePlayers = (reactionUsers, proponentID, propositionID) => {
+const getVotePlayers = (reactionUsers, proponentID, propositionID, makeActive = true) => {
   
   var output = {
     players: [],
@@ -430,7 +520,7 @@ const getVotePlayers = (reactionUsers, proponentID, propositionID) => {
           //Check if the player is flagged as inactive
           if(!Players[playerID].active){
             
-            if(propositionID+Config.activityCheckNum >= Propositions.length){
+            if(makeActive && propositionID+Config.activityCheckLimit >= Propositions.length){
               //If the proposition is recent, make the player active again
               //Known issue: this incorrectly classifies some inactive players as active if they rightvote
               Players[playerID].active = true;
@@ -540,7 +630,7 @@ exports.updateActivity = () => {
   }
   
   //Loop through the most recent propositions
-  for(var prop = 0;prop < Config.activityCheckNum && prop < Propositions.length;prop ++){
+  for(var prop = 0;prop < Config.activityCheckLimit && prop < Propositions.length;prop ++){
     
     var proposition = Propositions[Propositions.length - prop - 1];
     

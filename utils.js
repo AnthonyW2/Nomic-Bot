@@ -19,6 +19,7 @@ const webcrypto = require("crypto").webcrypto;
 /**
  * Generate a random number between 0 (inclusive) and 1 (exclusive)
  * This function serves as an unpredictable version of Math.random()
+ * @returns {float}
  */
 exports.rand = () => {
   
@@ -38,7 +39,7 @@ exports.rand = () => {
  */
 exports.logMessage = async (message) => {
   
-  console.log(message);
+  console.log("["+(new Date()).getTime()+"]",message);
   
   if(!devmode){
     //Unarchive the NAS-Logs thread if necessary

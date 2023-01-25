@@ -54,6 +54,9 @@ exports.processInteraction = async (interaction) => {
     //Check for matching command
     if(args.cmd === exports.list[c].name){
       
+      //Indicate that Nomic Bot is going to respond to the command
+      interaction.channel.sendTyping();
+      
       //Execute the function corresponding to the matching command
       exports.list[c].func(interaction, args, "interaction");
       
@@ -96,6 +99,9 @@ exports.processMessage = async (message) => {
     
     //Check for matching command
     if(args.cmd === exports.list[c].name){
+      
+      //Indicate that Nomic Bot is going to respond to the command
+      message.channel.sendTyping();
       
       //Execute the function corresponding to the matching command
       exports.list[c].func(message, args, "message");
@@ -157,7 +163,15 @@ exports.respond = async (event, eventtype, response, replyoverride) => {
     if(eventtype == "message"){
       return await event.channel.send(response);
     }else{
-      return await event.reply(response);
+      if(event.replied){
+        //Append to previous response
+        return await event.followUp(response);
+      }else if(event.deferred){
+        //Replace previous (deferred) response
+        return await event.editReply(response);
+      }else{
+        return await event.reply(response);
+      }
     }
     
   }else if(replyoverride){
@@ -297,7 +311,7 @@ exports.players = async (event, args, eventtype) => {
   //}
   
   var reply = new MessageEmbed();
-  reply.addField("Players:", playerList);
+  reply.addFields({ name: "Players:", value: playerList});
   
   await exports.respond(event, eventtype, {embeds: [reply]});
   
@@ -319,37 +333,89 @@ exports.votes = async (event, args, eventtype) => {
   if(eventtype == "message"){
     args.message = args.list[0];
     args.options = args.list.slice(1).join(" ");
+  }else if(eventtype == "interaction"){
+    //This command tends to take a long time, so defer it to ensure that the command token doesn't expire
+    await event.deferReply();
   }
   
-  ///To do:
-  ///Get a list of ongoing propositions if no ID is given
+  const propositionsChannel = client.channels.cache.get(SecureInfo.channels[1].ID);
   
-  var propositionsChannel = client.channels.cache.get(SecureInfo.channels[1].ID);
-  
-  //Get the message with the given ID
-  var propositionMsg;
-  await propositionsChannel.messages.fetch(args.message).then((msg) => {
-    propositionMsg = msg;
-  }).catch((err) => {
-    console.log("Error finding proposition");
-  });
-  
-  //Report an error if the message was not found
-  if(typeof(propositionMsg) != "object"){
-    exports.respond(event, eventtype, "Error: Unable to identify proposition. The message ID may be incorrect.");
-    return;
+  if(args.message == undefined){
+    //Get a list of ongoing propositions if no ID is given
+    
+    var responses = [];
+    
+    for(var p = 0;p < Propositions.length;p ++){
+      
+      //Only check the status if the proposition is active
+      if(!Propositions[p].majority){
+        
+        //Get the message with the given ID
+        var propositionMsg;
+        await propositionsChannel.messages.fetch(Propositions[p].messageID).then((msg) => {
+          propositionMsg = msg;
+        }).catch((err) => {
+          console.log("Error finding proposition");
+        });
+        
+        responses.push(await votesCmdOutput(propositionMsg, p, args.options));
+        
+      }
+      
+    }
+    
+    if(responses.length == 0){
+      exports.respond(event, eventtype, "No active propositions");
+    }else{
+      exports.respond(event, eventtype, {embeds: responses});
+    }
+    
+  }else{
+    
+    //Get the message with the given ID
+    var propositionMsg;
+    await propositionsChannel.messages.fetch(args.message).then((msg) => {
+      propositionMsg = msg;
+    }).catch((err) => {
+      console.log("Error finding proposition");
+    });
+    
+    //Report an error if the message was not found
+    if(typeof(propositionMsg) != "object"){
+      exports.respond(event, eventtype, "Error: Unable to identify proposition. The message ID may be incorrect.");
+      return;
+    }
+    
+    //Get the ID of the matching stored proposition
+    var propositionID = PropositionFunctions.matchProposition(propositionMsg);
+    
+    //Report an error if a matching stored proposition was not found
+    if(propositionID == -1){
+      exports.respond(event, eventtype, "Error: Unable to match a stored proposition.");
+      logMessage("ERROR: Matching proposition not found");
+      return;
+    }
+    
+    
+    var reply = await votesCmdOutput(propositionMsg, propositionID, args.options);
+    
+    await exports.respond(event, eventtype, {embeds: [reply]});
+    
   }
   
-  //The the ID of the matching stored proposition
-  var propositionID = PropositionFunctions.matchProposition(propositionMsg);
-  
-  //Report an error if a matching stored proposition was not found
-  if(propositionID == -1){
-    exports.respond(event, eventtype, "Error: Unable to match a stored proposition.");
-    logMessage("ERROR: Matching proposition not found");
-    return;
-  }
-  
+}
+
+
+
+/**
+ * @async
+ * Given a list of users, return the corresponding player objects and detect illegal votes
+ * @param {Message} propositionMsg Main message of the proposition
+ * @param {int} propositionID ID of proposition
+ * @param {string} options Control extra functionality
+ * @returns {MessageEmbed} 
+ */
+const votesCmdOutput = async (propositionMsg, propositionID, options) => {
   
   //Get the vote status using functionality from propositions.js
   var voteStatus = await PropositionFunctions.getVoteStatus(propositionMsg, propositionID);
@@ -360,47 +426,49 @@ exports.votes = async (event, args, eventtype) => {
   var rightvoteList = getAttrList(voteStatus.rightvotes,"name");
   
   //Create the reply as an embed
-  var reply = new MessageEmbed();
+  var response = new MessageEmbed();
   
-  reply.setDescription("Votes on <@"+propositionMsg.author.id+">'s " + (Propositions[propositionID].judgesuggestion ? "suggestion" : "proposition"));
+  response.setDescription("Votes on <@"+propositionMsg.author.id+">'s " + (Propositions[propositionID].judgesuggestion ? "suggestion" : "proposition"));
   
   //Add a field describing the type of majority (if applicable)
   switch(voteStatus.majority){
     case -1:
-      reply.addField("Not yet majority",voteStatus.remaining.length+" votes remaining");
+      var expiryStr = "\nExpires <t:"+(Propositions[propositionID].proposedTimestamp+Config.propositionTimeout*60*60)+":R>";
+      response.addFields({ name: "Not yet majority", value: voteStatus.remaining.length+" votes remaining"+expiryStr});
       break;
     case 0:
-      reply.addField("Tie","The proposition has not passed");
+      response.addFields({ name: "Tie", value: "The proposition has not passed"});
       break;
     case 1:
-      reply.addField("Upvote majority","The proposition has passed");
+      response.addFields({ name: "Upvote majority", value: "The proposition has passed"});
       break;
     case 2:
-      reply.addField("Downvote majority","The proposition has not passed");
+      response.addFields({ name: "Downvote majority", value: "The proposition has been rejected"});
   }
   
-  if(args.length > 2){
-    if(args.options.includes("remaining") || args.options == "r"){
+  if(options != undefined){
+    if(options.includes("remaining") || options == "r"){
       var remainingList = getAttrList(voteStatus.remaining,"name");
-      reply.addField("Remaining:", remainingList.length > 0 ? remainingList.join("\n") : "NA");
+      response.addFields({ name: "Remaining:", value: remainingList.length > 0 ? remainingList.join("\n") : "NA"});
     }
   }
   
-  reply.addField("Upvotes: "+upvoteList.length, upvoteList.length > 0 ? upvoteList.join("\n") : "NA");
-  reply.addField("Downvotes: "+downvoteList.length, downvoteList.length > 0 ? downvoteList.join("\n") : "NA");
+  response.addFields(
+    { name: "Upvotes: "+upvoteList.length, value: upvoteList.length > 0 ? upvoteList.join("\n") : "NA"},
+    { name: "Downvotes: "+downvoteList.length, value: downvoteList.length > 0 ? downvoteList.join("\n") : "NA"}
+  );
   if(!Propositions[propositionID].judgesuggestion){
-    reply.addField("Rightvotes: "+rightvoteList.length, rightvoteList.length > 0 ? rightvoteList.join("\n") : "NA");
+    response.addFields({ name: "Rightvotes: "+rightvoteList.length, value: rightvoteList.length > 0 ? rightvoteList.join("\n") : "NA"});
   }
   
   if(voteStatus.illegalVote){
-    reply.addField("Warning","Illegal vote(s) detected");
+    response.addFields({ name: "Warning", value: "Illegal vote(s) detected"});
   }
-  
-  exports.respond(event, eventtype, {embeds: [reply]});
-  
   
   //Update the stored proposition data
   PropositionFunctions.updateProposition(propositionMsg, voteStatus);
+  
+  return response;
   
 }
 

@@ -106,9 +106,24 @@
   Ended Season 3.
 
 4.0.0
-  [2023-1-8 - 2023-1-15]
+  [2023-1-8 - 2023-1-17]
   Prepared Nomic Bot for Season 4.
   Removed left votes.
   Changed command argument processing to better suit slash commands, and modified all (applicable) commands for the new argument format.
   Added an extra timestamp to propositions.
   Tweaked inactivity.
+
+4.1.0
+  [2023-1-18 - 2023-1-25]
+  Nomic Bot now automatically checks the votes on a proposition 12 and 72 hours after proposal (configurable).
+  Upgraded the "votes" command.
+    If not given an ID for a specific proposition it will return the status of all active propositions.
+    Now shows how long left the proposition has before timing out.
+    If invoked by a slash command, it will properly defer the response to prevent the command from timing out.
+  Fixed a minor bug which caused inactive players who rightvoted to be temporarily made "active" when they shouldn't be.
+  Made some minor improvements to getVoteStatus().
+  A typing indicator is now sent before responding to commands.
+  Propositions are no longer updated when Nomic Bot adds/removes a reaction, reducing rate limiting.
+  Multi-message propositions have been disabled for the beginning of this season.
+    Reactions are now automatically removed from earlier messages in multi-message propositions.
+  judge suggestions no longer have a rightvote option added to the message, and getVoteStatus() now properly deals with them.
