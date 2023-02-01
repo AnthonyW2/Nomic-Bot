@@ -11,5 +11,5 @@
   "activityCheckLimit": 4,
   "inactiveVoteTimeout": 12,
   "propositionTimeout": 72,
-  "version": "4.1.0"
+  "version": "4.1.1"
 }

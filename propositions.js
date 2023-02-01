@@ -146,8 +146,6 @@ exports.handleVote = async (reaction) => {
  */
 exports.scheduleUpdate = async (prop) => {
   
-  //logMessage("Scheduling for "+prop);
-  
   if(Propositions[prop].majority){
     return;
   }
@@ -166,21 +164,21 @@ exports.scheduleUpdate = async (prop) => {
     //Between 12 & 72 hours since proposal
     
     //Check if any rightvotes have come from inactive players
-    var inactiveVoted = false;
-    for(var v = 0;v < Propositions[prop].votes[2].length;v ++){
-      if(!Players[ Propositions[prop].votes[2][v] ].active){
-        inactiveVoted = true;
-        v = Propositions[prop].votes[2].length;
-      }
-    }
-    if(!inactiveVoted){
-      //If there are no rightvotes from inactive players, update the proposition
-      console.log("Updating prop (0)");
-      exports.updateProposition(prop);
-    }
+    //var inactiveVoted = false;
+    //for(var v = 0;v < Propositions[prop].votes[2].length;v ++){
+    //  if(!Players[ Propositions[prop].votes[2][v] ].active){
+    //    inactiveVoted = true;
+    //    v = Propositions[prop].votes[2].length;
+    //  }
+    //}
+    //if(!inactiveVoted){
+    //  //If there are no rightvotes from inactive players, update the proposition
+    //  console.log("Updating prop (0)");
+    //  exports.updateProposition(prop);
+    //}
+    exports.updateProposition(prop);
     
     //Schedule the next check
-    console.log("set for",1000*(proposed + Config.propositionTimeout*60*60 - now + 1));
     logMessage("Proposition " + prop + " scheduled to be checked in " + (1000*(proposed + Config.propositionTimeout*60*60 - now + 1))+"ms");
     timers.setTimeout(exports.scheduleUpdate, 1000*(proposed + Config.propositionTimeout*60*60 - now + 1), prop);
     

@@ -126,4 +126,8 @@
   Propositions are no longer updated when Nomic Bot adds/removes a reaction, reducing rate limiting.
   Multi-message propositions have been disabled for the beginning of this season.
     Reactions are now automatically removed from earlier messages in multi-message propositions.
-  judge suggestions no longer have a rightvote option added to the message, and getVoteStatus() now properly deals with them.
+  Judge suggestions no longer have a rightvote option added to the message, and getVoteStatus() now properly deals with them.
+
+4.1.1
+  [2023-1-26]
+  Fixed a bug causing propositions not to be properly checked after 12 hours.
