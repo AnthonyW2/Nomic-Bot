@@ -481,12 +481,14 @@ const votesCmdOutput = async (propositionMsg, propositionID, options) => {
  * @param {Object} args Arguments to the command
  * * @argument lowerbound
  * * @argument upperbound
+ * * @argument number Number of random numbers to return
  * @param {string} eventtype "message" or "interaction"
  */
 exports.rand = async (event, args, eventtype) => {
   
   var lowerbound = 0;
   var upperbound = 1;
+  var number = 1;
   
   if(eventtype == "message"){
     if(args.list.length == 1){
@@ -494,13 +496,27 @@ exports.rand = async (event, args, eventtype) => {
     }else if(args.list.length == 2){
       args.lowerbound = args.list[0];
       args.upperbound = args.list[1];
+    }else if(args.list.length == 2){
+      args.lowerbound = args.list[0];
+      args.upperbound = args.list[1];
+      args.number = args.list[2];
     }
   }
   
+  if(args.number != undefined){
+    number = args.number;
+  }
+  
   if(args.lowerbound == undefined && args.upperbound == undefined){
-    //If no arguments are given, return a random number in the interval [0,1)
+    //If no bounds are given, return a random number in the interval [0,1)
     
-    await exports.respond(event, eventtype, "Number between 0 and 1:\n"+rand().toString());
+    var response = "";
+    
+    for(var n = 0;n < number;n ++){
+      response += "\n"+rand().toString()
+    }
+    
+    await exports.respond(event, eventtype, "Number between 0 and 1:"+response);
     return;
     
   }else if(args.lowerbound == undefined && args.upperbound != undefined){
@@ -543,9 +559,14 @@ exports.rand = async (event, args, eventtype) => {
     
   }
   
-  var randint = Math.floor(rand() * (upperbound-lowerbound+1)) + lowerbound;
+  var response = "";
   
-  await exports.respond(event, eventtype, "Random integer between "+lowerbound+" and "+upperbound+":\n"+randint);
+  for(var n = 0;n < number;n ++){
+    var randint = Math.floor(rand() * (upperbound-lowerbound+1)) + lowerbound;
+    response += "\n"+randint;
+  }
+  
+  await exports.respond(event, eventtype, "Random integer between "+lowerbound+" and "+upperbound+":"+response);
   
 }
 
@@ -1248,6 +1269,10 @@ exports.list = [
       {
         name: "upperbound",
         description: "Highest integer returned"
+      },
+      {
+        name: "number",
+        description: "Number of numbers returned"
       }
     ]
   },
