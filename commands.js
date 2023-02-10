@@ -246,14 +246,14 @@ exports.help = async (event, args, eventtype) => {
   var helpMessage = new MessageEmbed();
   
   helpMessage.setTitle("Nomic Bot Help");
-  helpMessage.setDescription("The current command prefix is " + cmdpref);
+  helpMessage.setDescription("The current command prefix is " + cmdpref + ", but slash (/) commands are recommended.");
   helpMessage.addFields(
-    { name: "Player Information", value: "For the current turn order and player stats, use the `"+cmdpref+"players` command."},
-    { name: "Votes", value: "To get the votes on a rule, use the `"+cmdpref+"votes <message ID>` command.\nNomic Bot will automatically announce when a proposition reaches majority."},
-    { name: "Random Numbers", value: "To generate a random number between `X` and `Y`, use the `"+cmdpref+"rand X Y` command.\nTo roll `X` virtual dice of size `Y`, use the `"+cmdpref+"roll XdY` command."},
-    { name: "Dice Rolling", value: "To roll `N` dice of size `X`, use the `"+cmdpref+"roll NdX` command."},
-    ///{ name: "Random Card", value: "To get a random card, use the `"+cmdpref+"card` command."},
+    { name: "Player Information", value: "For the current player stats, use the `"+cmdpref+"players` command."},
+    { name: "Votes", value: "To get the votes on all active propositions, use the `/votes` command.\nTo get the votes on a specific proposition, use the `"+cmdpref+"votes <message ID>` command.\nNomic Bot will automatically announce when a proposition reaches majority."},
+    { name: "Random Numbers", value: "To generate a random integer between `X` and `Y`, use the `"+cmdpref+"rand X Y` command.\nTo generate a random number between 0 and 1, use the `"+cmdpref+"rand` command."},
+    { name: "Dice Rolling", value: "To roll `N` dice of size `X`, use the `"+cmdpref+"roll NdX` command."}
   );
+  helpMessage.setThumbnail(client.user.displayAvatarURL());
   helpMessage.setFooter({
     text: "See the website for more details"
   });
@@ -269,9 +269,25 @@ exports.help = async (event, args, eventtype) => {
  * @command Send a list of players.
  * @param {} event The event (message or interaction) that called this command
  * @param {Object} args Arguments to the command
+ * * @argument options Control extra functionality
  * @param {string} eventtype "message" or "interaction"
  */
 exports.players = async (event, args, eventtype) => {
+  
+  if(eventtype == "message"){
+    args.options = args.list.slice(0).join(" ").toLowerCase();
+  }
+  if(args.options == undefined){
+    args.options = "";
+  }
+  
+  //Select the emojis to use
+  var judgeSymbol = ":judge:";
+  var doctorSymbol = ":health_worker:";
+  if(event.guildId == "701269326518419547"){
+    judgeSymbol = "<:gavel:1073385611551064095>";
+    doctorSymbol = "<:doctor:1073369551724617871>";
+  }
   
   var playerList = "";
   
@@ -285,30 +301,24 @@ exports.players = async (event, args, eventtype) => {
       
       playerList += "\n" + (p+1) + " - " + Players[p].name + " (<@" + SecureInfo.players[p].ID + ">)";
       
+      //Add symbols (inactive, judge/doctor candidate)
       if(!Players[p].active){
-        playerList += " (:zzz:)";
+        playerList += " :zzz:";
+      }
+      if(args.options.includes("candidate") || args.options == "c"){
+        if(Players[p].judgecandidate){
+          playerList += " "+judgeSymbol;
+        }
+        if(Players[p].pdcandidate){
+          playerList += " "+doctorSymbol;
+        }
+      }else if(Players[p].plaguedoctor){
+        playerList += " "+doctorSymbol;
       }
       
     }
     
   }
-  
-  //Print players in turn order (no longer applicable)
-  //for(var t = 0;t < Players.length;t ++){
-  //  
-  //  for(var p = 0;p < Players.length;p ++){
-  //    if(Players[p].turn == t && Players[p].playing){
-  //      
-  //      playerList += "\n" + (t+1) + " - " + Players[p].name + " (<@" + SecureInfo.players[p].ID + ">)";
-  //      
-  //      if(!Players[p].active){
-  //        playerList += " (:zzz:)";
-  //      }
-  //      
-  //    }
-  //  }
-  //  
-  //}
   
   var reply = new MessageEmbed();
   reply.addFields({ name: "Players:", value: playerList});
@@ -332,7 +342,7 @@ exports.votes = async (event, args, eventtype) => {
   
   if(eventtype == "message"){
     args.message = args.list[0];
-    args.options = args.list.slice(1).join(" ");
+    args.options = args.list.slice(1).join(" ").toLowerCase();
   }else if(eventtype == "interaction"){
     //This command tends to take a long time, so defer it to ensure that the command token doesn't expire
     await event.deferReply();
@@ -465,10 +475,79 @@ const votesCmdOutput = async (propositionMsg, propositionID, options) => {
     response.addFields({ name: "Warning", value: "Illegal vote(s) detected"});
   }
   
+  response.setTitle("Proposition");
+  response.setURL(propositionMsg.url);
+  
   //Update the stored proposition data
   PropositionFunctions.updateProposition(propositionMsg, voteStatus);
   
   return response;
+  
+}
+
+
+
+/**
+ * @async
+ * @command Send information about a specified player
+ * @param {} event The event (message or interaction) that called this command
+ * @param {Object} args Arguments to the command
+ * * @argument player The player to get information about (User ID, PID, or name)
+ * @param {string} eventtype "message" or "interaction"
+ */
+exports.playerinfo = async (event, args, eventtype) => {
+  
+  if(eventtype == "message"){
+    args.player = args.list[0];
+  }
+  
+  var player = Players[identifyPlayer(args.player)];
+  if(player == undefined){
+    await exports.respond(event, eventtype, "Invalid player.");
+    return;
+  }
+  
+  var user = await getUser(SecureInfo.players[player.PID].ID);
+  if(user == undefined || user.id != SecureInfo.players[player.PID].ID){
+    await exports.respond(event, eventtype, "Unable to get Discord user.");
+    return;
+  }
+  
+  var activity = (player.active ? "Active" : "Inactive");
+  activity += (player.playing ? "\nPlaying" : "\nNot playing");
+  
+  var roles = [];
+  if(player.judgecandidate){
+    roles.push("Judge candidate");
+  }
+  if(player.pdcandidate){
+    roles.push("Plague Doctor candidate");
+  }
+  if(player.plaguedoctor){
+    roles.push("Plague Doctor");
+  }
+  if(roles.length == 0){
+    roles.push("NA");
+  }
+  
+  var humors = [];
+  humors.push("Red: "+player.humors.red);
+  humors.push("Blue: "+player.humors.blue);
+  humors.push("Yellow: "+player.humors.yellow);
+  humors.push("Black: "+player.humors.black);
+  
+  var reply = new MessageEmbed();
+  reply.setTitle(player.name);
+  reply.setDescription("Player information for <@"+user.id+">");
+  reply.addFields(
+    { name: "Activity", value: activity},
+    { name: "Roles", value: roles.join("\n")},
+    { name: "Humors", value: humors.join("\n")}
+  );
+  reply.setColor(player.iconcolor.substring(1));
+  reply.setThumbnail(user.displayAvatarURL());
+  
+  await exports.respond(event, eventtype, {embeds: [reply]});
   
 }
 
@@ -977,6 +1056,122 @@ exports.addprop = async (event, args, eventtype) => {
 
 /**
  * @async
+ * @command Manually add a new proposition to storage.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {Object} args Arguments to the command
+ * * @argument type Judge (j) or Plague Doctor (pd)
+ * * @argument player The player to become a candidate (User ID, PID, or name)
+ * @param {string} eventtype "message" or "interaction"
+ */
+exports.addcandidate = async (event, args, eventtype) => {
+  
+  if(eventtype == "message"){
+    args.type = args.list[0];
+    args.player = args.list[1];
+  }
+  if(args.type == undefined || args.player == undefined){
+    await exports.respond(event, eventtype, "Invalid arguments. Please supply a valid candidate type and player ID.");
+    return;
+  }
+  
+  var player = Players[identifyPlayer(args.player)];
+  if(player == undefined){
+    await exports.respond(event, eventtype, "Invalid player.");
+    return;
+  }
+  
+  var type = undefined;
+  var action = undefined;
+  
+  if(args.type.toLowerCase() == "j" || args.type.toLowerCase() == "judge"){
+    type = "Judge";
+    action = (player.judgecandidate ? "Removed" : "Added");
+    player.judgecandidate = !player.judgecandidate;
+  }else if(args.type.toLowerCase() == "pd" || args.type.toLowerCase() == "plague doctor"){
+    type = "Plague Doctor";
+    action = (player.pdcandidate ? "Removed" : "Added");
+    player.pdcandidate = !player.pdcandidate;
+  }
+  
+  if(type == undefined || action == undefined){
+    await exports.respond(event, eventtype, "Invalid type.");
+    return;
+  }
+  
+  updateFile("players");
+  
+  await exports.respond(event, eventtype, action+" "+player.name+" as a "+type+" candidate.");
+  
+}
+
+
+
+/**
+ * @async
+ * @command Randomly pick a Judge out of the possible candidates.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {Object} args Arguments to the command
+ * @param {string} eventtype "message" or "interaction"
+ */
+exports.choosejudge = async (event, args, eventtype) => {
+  
+  var candidates = [];
+  
+  for(var p = 0;p < Players.length;p ++){
+    
+    if(Players[p].judgecandidate){
+      candidates.push(Players[p]);
+    }
+    
+  }
+  
+  if(candidates.length == 0){
+    await exports.respond(event, eventtype, "No Judge candidates available.");
+    return;
+  }
+  
+  var judge = candidates[ Math.floor(rand()*candidates.length) ];
+  
+  await exports.respond(event, eventtype, "Chosen Judge: "+judge.name);
+  
+}
+
+
+
+/**
+ * @async
+ * @command Randomly pick a Plague Doctor out of the possible candidates.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {Object} args Arguments to the command
+ * @param {string} eventtype "message" or "interaction"
+ */
+exports.choosedoctor = async (event, args, eventtype) => {
+  
+  var candidates = [];
+  
+  for(var p = 0;p < Players.length;p ++){
+    
+    if(Players[p].pdcandidate){
+      candidates.push(Players[p]);
+    }
+    
+  }
+  
+  if(candidates.length == 0){
+    await exports.respond(event, eventtype, "No Plague Doctor candidates available.");
+    return;
+  }
+  
+  var doctor = candidates[ Math.floor(rand()*candidates.length) ];
+  
+  await exports.respond(event, eventtype, "Chosen Judge: "+doctor.name);
+  
+}
+
+
+
+/**
+ * @async
  * @command Run a git command - can only be used by the system maintainer
  * @param {} event The event (message or interaction) that called this command
  * @param {Object} args Arguments to the command
@@ -1238,11 +1433,6 @@ exports.list = [
     func: exports.help
   },
   {
-    name: "players",
-    description: "List players of Season 3",
-    func: exports.players
-  },
-  {
     name: "votes",
     description: "Return current voting status",
     func: exports.votes,
@@ -1254,6 +1444,28 @@ exports.list = [
       {
         name: "options",
         description: "Control extra functionality"
+      }
+    ]
+  },
+  {
+    name: "players",
+    description: "List players of the current Season",
+    func: exports.players,
+    options: [
+      {
+        name: "options",
+        description: "Control extra functionality"
+      }
+    ]
+  },
+  {
+    name: "playerinfo",
+    description: "Get information about a player",
+    func: exports.playerinfo,
+    options: [
+      {
+        name: "player",
+        description: "Player ID or name"
       }
     ]
   },
@@ -1337,6 +1549,31 @@ exports.list = [
         description: "ID of the proposition message"
       }
     ]
+  },
+  {
+    name: "addcandidate",
+    description: "Add/remove a Judge or Plague Doctor candidate",
+    func: exports.addcandidate,
+    options: [
+      {
+        name: "type",
+        description: "Plague Doctor or Judge"
+      },
+      {
+        name: "player",
+        description: "Player ID or name"
+      }
+    ]
+  },
+  {
+    name: "choosejudge",
+    description: "Randomly pick a Judge out of the possible candidates",
+    func: exports.choosejudge
+  },
+  {
+    name: "choosedoctor",
+    description: "Randomly pick a Plauge Doctor out of the possible candidates",
+    func: exports.choosedoctor
   },
   {
     name: "git",

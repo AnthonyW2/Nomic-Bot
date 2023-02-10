@@ -135,3 +135,16 @@
 4.1.2
   [2023-2-6]
   Added the ability to generate X number or random numbers with the "rand" command.
+
+4.2.0
+  [2023-2-9 - 2023-2-10]
+  Player activity has been disabled, and all players are now active.
+  Added symbols to the "players" command to show which roles a player is a candidate of.
+  Updated the internal identifyPlayer() utility function.
+  Added an internal getUser() utility funciton.
+  Added the "playerinfo" command to show information about a specific player.
+  Added the "addcandidate" command to add or remove a player as a Judge or Plague Doctor candidate.
+  Added a link to the relevant message in the output of the "votes" command.
+  Failed propositions are no longer marked with a checkmark, but instead a red X.
+  Updated the output of the "help" command.
+  Fixed a minor bug in the output of the "votes" command concerning displaying majority.

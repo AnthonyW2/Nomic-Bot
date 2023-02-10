@@ -54,21 +54,85 @@ exports.logMessage = async (message) => {
 
 
 /**
- * Return the matching player ID given the Discord user ID
+ * Return the matching player ID given one of: the player ID; the Discord user ID; the player name.
  * @param {string} id A Discord user ID
  * @returns {int} Player ID (PID)
  */
 exports.identifyPlayer = (id) => {
   
-  for(var p = 0;p < SecureInfo.players.length;p ++){
+  if(id == undefined){
+    return undefined;
+  }
+  
+  var type = 2;
+  if(isNaN(id)){
+    //Player name
+    type = 2;
+  }else if(id.length <= 3){
+    //Player ID
+    type = 0;
+  }else{
+    //User ID
+    type = 1;
+  }
+  
+  if(type == 1){
     
-    if(SecureInfo.players[p].ID == id){
-      return SecureInfo.players[p].PID;
+    for(var p = 0;p < SecureInfo.players.length;p ++){
+      if(SecureInfo.players[p].ID == id){
+        return SecureInfo.players[p].PID;
+      }
+    }
+    
+  }else{
+    
+    for(var p = 0;p < Players.length;p ++){
+    
+      switch(type){
+        case 0:
+          if(p == id){
+            return p;
+          }
+        break;
+        case 2:
+          if(id.toLowerCase().includes(Players[p].name.toLowerCase())){
+            return p;
+          }
+        break;
+      }
+      
     }
     
   }
   
   return undefined;
+  
+}
+
+
+
+/**
+ * @async
+ * Return the matching Discord User given their ID.
+ * @param {string} id A Discord user ID
+ * @returns {int} Player ID (PID)
+ */
+exports.getUser = async (id) => {
+  
+  var user;
+  
+  try{
+    user = await client.users.fetch(id);
+  }catch(error){
+    console.error("Failed to find user.", error);
+  }
+  
+  //Report an error if the user was not found
+  if(typeof(user) != "object"){
+    return undefined;
+  }
+  
+  return user;
   
 }
 

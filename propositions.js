@@ -163,19 +163,7 @@ exports.scheduleUpdate = async (prop) => {
   }else if(now - proposed >= Config.inactiveVoteTimeout*60*60 && now - proposed <= Config.propositionTimeout*60*60){
     //Between 12 & 72 hours since proposal
     
-    //Check if any rightvotes have come from inactive players
-    //var inactiveVoted = false;
-    //for(var v = 0;v < Propositions[prop].votes[2].length;v ++){
-    //  if(!Players[ Propositions[prop].votes[2][v] ].active){
-    //    inactiveVoted = true;
-    //    v = Propositions[prop].votes[2].length;
-    //  }
-    //}
-    //if(!inactiveVoted){
-    //  //If there are no rightvotes from inactive players, update the proposition
-    //  console.log("Updating prop (0)");
-    //  exports.updateProposition(prop);
-    //}
+    //Update the proposition
     exports.updateProposition(prop);
     
     //Schedule the next check
@@ -291,7 +279,12 @@ exports.updateProposition = async (proposition, votes) => {
     //Add the majority timestamp to the proposition
     Propositions[prop].majorityTimestamp = Math.round((new Date()).getTime()/1000);
     
-    message.react("✅");
+    if(voteStatus.majority == 1){
+      message.react("✅");
+    }else{
+      message.react("❌");
+    }
+    
   }
   
   
@@ -442,7 +435,7 @@ exports.getVoteStatus = async (message, propositionID) => {
   
   
   //Identify majority
-  if(Math.round((new Date()).getTime()/1000) > Propositions[propositionID].proposedTimestamp+Config.propositionTimeout*60*60){
+  if(Math.round((new Date()).getTime()/1000) > Propositions[propositionID].proposedTimestamp+Config.propositionTimeout*60*60 || Propositions[propositionID].majority){
     //The proposition has timed out
     //Identify which majority has been reached
     output.majority = exports.checkMajority(output.upvotes.length, output.downvotes.length, 0);
@@ -620,6 +613,9 @@ exports.matchProposition = (messageID) => {
  * Update the active players
  */
 exports.updateActivity = () => {
+  
+  //FUNCTIONALITY CURRENTLY DISABLED
+  return;
   
   //Start with an array with one element per player
   var active = [];

@@ -3,7 +3,7 @@
  * 
  * @author Anthony Wilson
  * 
- * @version 4.1.2
+ * @version 4.2.0
  * 
  * @since 2021-8-7
  */
@@ -34,12 +34,10 @@ global.SecureInfo = require("./secureinfo.json");
 //Rule class
 global.Rule = require(sitePath+"/Rules/rule-class.js").Rule;
 
-//Rule tree and player info list
+//Rules, player info, and propositions lists
 global.RawRules = new Rule( require(sitePath+"/Rules/rules.json") );
 global.Rules = new Rule( require(sitePath+"/Rules/rules.json") );
 global.Players = require(sitePath+"/Players/players.json");
-
-//Proposition list
 global.Propositions = require(sitePath+"/Propositions/propositions.json");
 
 //Import miscellaneous utility functions
@@ -47,6 +45,7 @@ const Utils = require("./utils.js");
 global.rand = Utils.rand;
 global.logMessage = Utils.logMessage;
 global.identifyPlayer = Utils.identifyPlayer;
+global.getUser = Utils.getUser;
 global.updateFile = Utils.updateFile;
 global.getAttrList = Utils.getAttrList;
 
