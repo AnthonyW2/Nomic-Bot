@@ -595,7 +595,7 @@ exports.rand = async (event, args, eventtype) => {
       response += "\n"+rand().toString()
     }
     
-    await exports.respond(event, eventtype, "Number between 0 and 1:"+response);
+    await exports.respond(event, eventtype, "Random number"+(number > 1 ? "s" : "")+" between 0 and 1:"+response);
     return;
     
   }else if(args.lowerbound == undefined && args.upperbound != undefined){
@@ -645,7 +645,7 @@ exports.rand = async (event, args, eventtype) => {
     response += "\n"+randint;
   }
   
-  await exports.respond(event, eventtype, "Random integer between "+lowerbound+" and "+upperbound+":"+response);
+  await exports.respond(event, eventtype, "Random integer"+(number > 1 ? "s" : "")+" between "+lowerbound+" and "+upperbound+":"+response);
   
 }
 
@@ -1164,7 +1164,75 @@ exports.choosedoctor = async (event, args, eventtype) => {
   
   var doctor = candidates[ Math.floor(rand()*candidates.length) ];
   
-  await exports.respond(event, eventtype, "Chosen Judge: "+doctor.name);
+  await exports.respond(event, eventtype, "Chosen Plague Doctor: "+doctor.name);
+  
+}
+
+
+
+/**
+ * @async
+ * @command Change one of a player's humor values
+ * @param {} event The event (message or interaction) that called this command
+ * @param {Object} args Arguments to the command
+ * * @argument mode 'Set', 'Add', or 'Subtract'
+ * * @argument player Player ID or name
+ * * @argument humor 'Red', 'Blue', 'Yellow', or 'Black'
+ * * @argument value New humor value
+ * @param {string} eventtype "message" or "interaction"
+ */
+exports.updatehumor = async (event, args, eventtype) => {
+  
+  if(eventtype == "message"){
+    args.mode = args.list[0];
+    args.player = args.list[1];
+    args.humor = args.list[2];
+    args.value = args.list[3];
+  }
+  //Return an error if the arguments are obviously wrong
+  if(args.player == undefined || args.humor == undefined || isNaN(args.value)){
+    await exports.respond(event, eventtype, "Invalid arguments. Please supply a valid player, humor, and value.");
+    return;
+  }
+  
+  //Identify the player
+  var player = Players[identifyPlayer(args.player)];
+  //Return an error if a matching player was not found.
+  if(player == undefined){
+    await exports.respond(event, eventtype, "Invalid player.");
+    return;
+  }
+  
+  //Return an error if the specified humor type is invalid.
+  if(args.humor.toLowerCase() != "red" && args.humor.toLowerCase() != "blue" && args.humor.toLowerCase() != "yellow" && args.humor.toLowerCase() != "black"){
+    await exports.respond(event, eventtype, "Invalid humor - must be one of: 'red', 'blue', 'yellow', or 'black'.");
+    return;
+  }
+  
+  var value = parseInt(args.value);
+  
+  if(args.mode == undefined || args.mode.toLowerCase() == "set"){
+    //Overwrite the value
+    player.humors[args.humor.toLowerCase()] = value;
+    await exports.respond(event, eventtype, "Set "+player.name+"'s "+args.humor.toLowerCase()+" humor points to "+value+".");
+    
+  }else if(args.mode.toLowerCase() == "add"){
+    //Add the value
+    player.humors[args.humor.toLowerCase()] += value;
+    await exports.respond(event, eventtype, "Added "+value+" to "+player.name+"'s "+args.humor.toLowerCase()+" humor points.");
+    
+  }else if(args.mode.toLowerCase().includes("sub")){
+    //Subtract the value
+    player.humors[args.humor.toLowerCase()] -= value;
+    await exports.respond(event, eventtype, "Subtracted "+value+" from "+player.name+"'s "+args.humor.toLowerCase()+" humor points.");
+    
+  }else{
+    //Return an error
+    await exports.respond(event, eventtype, "Invalid mode - must be one of: 'set', 'add', or 'subtract'.");
+    return;
+  }
+  
+  updateFile("players");
   
 }
 
@@ -1574,6 +1642,29 @@ exports.list = [
     name: "choosedoctor",
     description: "Randomly pick a Plauge Doctor out of the possible candidates",
     func: exports.choosedoctor
+  },
+  {
+    name: "updatehumor",
+    description: "Change a player's humor values",
+    func: exports.updatehumor,
+    options: [
+      {
+        name: "mode",
+        description: "'Set', 'Add', or 'Subtract'"
+      },
+      {
+        name: "player",
+        description: "Player ID or name"
+      },
+      {
+        name: "humor",
+        description: "'Red', 'Blue', 'Yellow', or 'Black'"
+      },
+      {
+        name: "value",
+        description: "New humor value"
+      }
+    ]
   },
   {
     name: "git",

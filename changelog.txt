@@ -105,6 +105,9 @@
   [2022-11-28]
   Ended Season 3.
 
+
+== Season 4 ==
+
 4.0.0
   [2023-1-8 - 2023-1-17]
   Prepared Nomic Bot for Season 4.
@@ -148,3 +151,9 @@
   Failed propositions are no longer marked with a checkmark, but instead a red X.
   Updated the output of the "help" command.
   Fixed a minor bug in the output of the "votes" command concerning displaying majority.
+
+4.2.1
+  [2023-2-12]
+  Added a command to change a player's humors.
+  Fixed the text output of the "choosedoctor" command.
+  Made the "rand" command grammatically correct.
