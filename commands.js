@@ -14,6 +14,9 @@ const { MessageEmbed } = require("discord.js");
 //Git functionality
 const Git = require("./git.js");
 
+//Magic functionality
+const Magic = require("./magic.js");
+
 
 
 /**
@@ -548,6 +551,77 @@ exports.playerinfo = async (event, args, eventtype) => {
   reply.setThumbnail(user.displayAvatarURL());
   
   await exports.respond(event, eventtype, {embeds: [reply]});
+  
+}
+
+
+
+/**
+ * @async
+ * @command Allow a player to access their vault.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {Object} args Arguments to the command
+ * * @argument command The action to take on the vault
+ * @param {string} eventtype "message" or "interaction"
+ */
+exports.vault = async (event, args, eventtype) => {
+  
+  var user = event.user;
+  
+  if(eventtype == "message"){
+    args.command = args.list[0];
+    args.args = args.list.slice(1,args.length).join(", ");
+    user = event.author;
+    
+    // If the user attempts to access their vault in an insecure location (in a guild), then return a warning and exit.
+    if(event.guildId !== null){
+      await exports.respond(event, eventtype, "The `vault` text command can only be used in Direct Messages!\nIf you wish to access your vault in this channel, please use the slash command `/vault`.");
+      await client.users.send(user, "Please use the `vault` command here.")
+      return;
+    }
+  }
+  
+  var player = Players[identifyPlayer(user.id)];
+  
+  //console.log(event);
+  //console.log(player);
+  //console.log(args);
+  
+  // Get and decode vault contents
+  var vaultContentsEncoded = player.vault;
+  var vaultContents = vaultContentsEncoded.map(encString => decodeVaultData(encString) );
+  
+  //console.log(vaultContentsEncoded);
+  //console.log(vaultContents);
+  
+  if(args.command == "use"){
+    // Allow the player to use an item in their vault
+  }
+  
+  // Re-encode the vault contents and store it.
+  //var newVaultContentsEncoded = vaultContents.map(obj => encodeVaultData(obj) );
+  
+  //console.log(newVaultContentsEncoded);
+  
+  
+  // Tell the player their current/new vault contents
+  var reply = new MessageEmbed();
+  reply.setTitle(player.name + "'s Vault");
+  reply.setDescription("Vault contents for <@"+user.id+">");
+  for(var i = 0;i < vaultContents.length;i ++){
+    var content = vaultContents[i];
+    reply.addFields(
+      { name: content.name, value: JSON.stringify(content.content, null, 2)}
+    );
+  }
+  reply.setColor(player.iconcolor.substring(1));
+  reply.setThumbnail(user.displayAvatarURL());
+  
+  if(event.guildId !== null){
+    await exports.respond(event, eventtype, {embeds: [reply], ephemeral: true});
+  }else{
+    await exports.respond(event, eventtype, {embeds: [reply]});
+  }
   
 }
 
@@ -1240,6 +1314,193 @@ exports.updatehumor = async (event, args, eventtype) => {
 
 /**
  * @async
+ * @command DESCRIPTION.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {Object} args Arguments to the command
+ * * @argument command DESCRIPTION
+ * @param {string} eventtype "message" or "interaction"
+ */
+exports.plaguedoctor = async (event, args, eventtype) => {
+  
+  var user = event.user;
+  
+  // If the user attempts to access their vault in an insecure location (in a guild), then return a warning and exit.
+  if(event.guildId !== null){
+    await exports.respond(event, eventtype, "The `vault` command can only be used in Direct Messages!");
+    await client.users.send(user, "Please use the `vault` command here.")
+    return;
+  }
+  
+  if(eventtype == "message"){
+    args.command = args.list[0];
+    args.args = args.list.slice(1,args.length).join(", ");
+    user = event.author;
+  }
+  
+  var player = Players[identifyPlayer(user.id)];
+  
+  //console.log(event);
+  //console.log(player);
+  //console.log(args);
+  
+  // Get and decode vault contents
+  var vaultContentsEncoded = player.vault;
+  var vaultContents = vaultContentsEncoded.map(encString => decodeVaultData(encString) );
+  
+  //console.log(vaultContentsEncoded);
+  //console.log(vaultContents);
+  
+  // Default behaviour: list the player's current spell submissions for this oscillation.
+  
+  if(args.command == "use"){
+    // Allow the player to use an item in their vault
+  }
+  
+  // Re-encode the vault contents and store it.
+  //var newVaultContentsEncoded = vaultContents.map(obj => encodeVaultData(obj) );
+  
+  //console.log(newVaultContentsEncoded);
+  
+  
+  // Tell the player their current/new vault contents
+  var reply = new MessageEmbed();
+  reply.setTitle(player.name + "'s Vault");
+  reply.setDescription("Vault contents for <@"+user.id+">");
+  for(var i = 0;i < vaultContents.length;i ++){
+    var content = vaultContents[i];
+    reply.addFields(
+      { name: content.name, value: JSON.stringify(content.content, null, 2)}
+    );
+  }
+  reply.setColor(player.iconcolor.substring(1));
+  reply.setThumbnail(user.displayAvatarURL());
+  
+  await exports.respond(event, eventtype, {embeds: [reply]});
+  
+}
+
+
+
+/**
+ * @async
+ * @command Send a list of spells.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {Object} args Arguments to the command
+ * @param {string} eventtype "message" or "interaction"
+ */
+exports.listspells = async (event, args, eventtype) => {
+  
+  var spellList = new MessageEmbed();
+  
+  spellList.setTitle("Spell List");
+  //spellList.setDescription("List of all spells currently available");
+  spellList.addFields(
+    { name: "[spell name]", value: "[type]\n[cost]\n[required params]"},
+    { name: "[spell name]", value: "[type]\n[cost]\n[required params]"}
+  );
+  spellList.setFooter({
+    text: "See the website for more details"
+  });
+  
+  await exports.respond(event, eventtype, {embeds: [spellList]});
+  
+}
+
+
+
+/**
+ * @async
+ * @command DESCRIPTION.
+ * @param {} event The event (message or interaction) that called this command
+ * @param {Object} args Arguments to the command
+ * * @argument command DESCRIPTION
+ * @param {string} eventtype "message" or "interaction"
+ */
+exports.cast = async (event, args, eventtype) => {
+  
+  var user = event.user;
+  
+  // If the user attempts to access their vault in an insecure location (in a guild), then return a warning and exit.
+  if(event.guildId !== null){
+    await exports.respond(event, eventtype, "The `vault` command can only be used in Direct Messages!");
+    await client.users.send(user, "Please use the `vault` command here.")
+    return;
+  }
+  
+  if(eventtype == "message"){
+    args.command = args.list[0];
+    user = event.author;
+    
+    if(args.list.length > 1){
+      await exports.respond(event, eventtype, "A text version of this command is not available, please use /cast instead.");
+      return;
+    }
+  }
+  
+  console.log(args);
+  
+  var caster = Players[identifyPlayer(user.id)];
+  
+  // Validate & identify the spell from the given name
+  if(args.spell == undefined){
+    await exports.respond(event, eventtype, "You must provide a valid spell for this command.");
+    return;
+  }
+  var spell = Magic.spells[ Magic.spells.map(spell => spell.name.toLowerCase()).indexOf(args.spell.toLowerCase()) ];
+  if(spell == undefined){
+    await exports.respond(event, eventtype, `"${args.spell}" is not the name of a spell.`);
+    return;
+  }
+  
+  // Validate & identify the player targets of the spell
+  var targets = [];
+  if(args.targets != undefined){
+    targets = args.targets.replace(" ","").replace(",",";").split(";").map(name => identifyPlayer(name));
+    
+    for(var t = 0;t < targets.length;t ++){
+      if(targets[t] == undefined){
+        await exports.respond(event, eventtype, `"${args.targets.replace(" ","").replace(",",";").split(";")[t]}" is not a valid player.`);
+        return;
+      }
+    }
+  }
+  
+  // Validate & identify the given Humors
+  var humors = [];
+  if(args.humors != undefined){
+    humors = args.humors.replace(" ","").toLowerCase().replace(",",";").split(";");
+    
+    for(var h = 0;h < humors.length;h ++){
+      if(!["r","b","y","k","red","blue","yellow","black"].includes(humors[h])){
+        await exports.respond(event, eventtype, `"${humors[h]}" is not a valid Humor.`);
+        return;
+      }
+    }
+  }
+  
+  // Check against the spell requirements
+  var numReqTargets = spell.requires.filter(r => r == "P").length;
+  if(numReqTargets != targets.length){
+    await exports.respond(event, eventtype, `This spell requires ${numReqTargets} player target(s).`);
+    return;
+  }
+  
+  var numReqHumors = spell.requires.filter(r => r == "H").length;
+  if(numReqHumors != humors.length){
+    await exports.respond(event, eventtype, `This spell requires ${numReqHumors} Humor(s).`);
+    return;
+  }
+  
+  Magic.storePlayerSpellCast(caster, spell, targets, humors);
+  
+  await exports.respond(event, eventtype, "Spell submitted");
+  
+}
+
+
+
+/**
+ * @async
  * @command Run a git command - can only be used by the system maintainer
  * @param {} event The event (message or interaction) that called this command
  * @param {Object} args Arguments to the command
@@ -1538,6 +1799,21 @@ exports.list = [
     ]
   },
   {
+    name: "vault",
+    description: "Access your vault",
+    func: exports.vault,
+    options: [
+      {
+        name: "command",
+        description: "Action to take on your vault"
+      },
+      {
+        name: "args",
+        description: "Arguments for the vault command"
+      }
+    ]
+  },
+  {
     name: "rand",
     description: "Generate random numbers",
     func: exports.rand,
@@ -1666,6 +1942,54 @@ exports.list = [
       }
     ]
   },
+  {
+    name: "plaguedoctor",
+    description: "Interact with the Plague Doctor",
+    func: exports.plaguedoctor,
+    options: [
+      {
+        name: "spell",
+        description: "The name of a spell to cast"
+      },
+      {
+        name: "target",
+        description: "A player (or players) for the spell to target"
+      },
+      {
+        name: "humor",
+        description: "A Humor (or Humors) for the spell to use and/or target"
+      }
+    ]
+  },
+  {
+    name: "listspells",
+    description: "List all magic spells and their casting requirements",
+    func: exports.listspells
+  },
+  {
+    name: "cast",
+    description: "Cast a spell",
+    func: exports.cast,
+    options: [
+      {
+        name: "spell",
+        description: "The name of the spell to cast"
+      },
+      {
+        name: "targets",
+        description: "Player(s) for the spell to target"
+      },
+      {
+        name: "humors",
+        description: "Humor(s) for the spell to use and/or target"
+      }
+    ]
+  },
+  //{
+  //  name: "clearspells",
+  //  description: "Clear all spell slots for this oscillation",
+  //  func: exports.clearspells
+  //},
   {
     name: "git",
     description: "Run a git command",

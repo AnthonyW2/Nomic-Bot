@@ -3,7 +3,7 @@
  * 
  * @author Anthony Wilson
  * 
- * @version 4.2.1
+ * @version 4.3.0
  * 
  * @since 2021-8-7
  */
@@ -46,6 +46,8 @@ global.rand = Utils.rand;
 global.logMessage = Utils.logMessage;
 global.identifyPlayer = Utils.identifyPlayer;
 global.getUser = Utils.getUser;
+global.decodeVaultData = Utils.decodeVaultData;
+global.encodeVaultData = Utils.encodeVaultData;
 global.updateFile = Utils.updateFile;
 global.getAttrList = Utils.getAttrList;
 

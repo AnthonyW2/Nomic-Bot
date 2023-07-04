@@ -157,3 +157,10 @@
   Added a command to change a player's humors.
   Fixed the text output of the "choosedoctor" command.
   Made the "rand" command grammatically correct.
+
+4.3.0
+  [2023-6-14 - 2023-7-4]
+  Added early "vault" functionality (for storing secrets).
+    Vault contents are encoded in Base64, so that players cannot accidentally read it.
+    Nomic Bot direct-messages the player if they attempt to use the vault command outside of a DM.
+  Began adding Plague Doctor functionality to Nomic Bot.

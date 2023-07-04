@@ -139,6 +139,32 @@ exports.getUser = async (id) => {
 
 
 /**
+ * Decode arbitrary data from a vault string.
+ * @param {string} encString String of encoded data.
+ * @returns {Object} Decoded data.
+ */
+exports.decodeVaultData = (encString) => {
+  
+  return JSON.parse( Buffer.from(encString, "base64").toString("utf8") );
+  
+}
+
+
+
+/**
+ * Encode arbitrary data to be stored in a vault string.
+ * @param {Object} data Data to be encoded (must be JSON-compatible).
+ * @returns {string} Encoded data.
+ */
+exports.encodeVaultData = (data) => {
+  
+  return Buffer.from(JSON.stringify(data), "utf8").toString("base64");
+  
+}
+
+
+
+/**
  * Return the matching attributes of an array of objects
  * @param {array} list An array of objects
  * @param {string} attr A string specifying the name of the attribute
@@ -161,11 +187,12 @@ exports.getAttrList = (list, attr) => {
 
 
 /**
- * Update a JSON file on the website
- * @param {string} file A Discord user ID
- * @returns {boolean} False if @param file does not match a known file to write to
+ * Update a JSON file in the automation system (only specifically allows files work).
+ * @param {string} file A Discord user ID.
+ * @param {Object} data Optional data to be stored in the specified file.
+ * @returns {boolean} False if @param file does not match a known file to write to.
  */
-exports.updateFile = (file) => {
+exports.updateFile = (file, data) => {
   
   var path;
   var content;
@@ -184,6 +211,11 @@ exports.updateFile = (file) => {
     case "players":
       path = sitePath+"/Players/players.json";
       content = JSON.stringify(Players, null, 2);
+      break;
+    
+    case "localstorage":
+      path = "./localstorage.json";
+      content = JSON.stringify(data, null, 2);
       break;
     
     default:
